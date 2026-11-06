@@ -5,8 +5,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 ROWS = [json.loads(l) for l in open('raw/ledger_rows.jsonl', encoding='utf-8')]
 REF_DATE = sys.argv[1] if len(sys.argv) > 1 else dt.date.today().isoformat()
 OPERATING = {'2015-151', '2015-31', '2020-46'}
-# 착공 여부는 허가대장에 적히지 않음: 공사계획인가·착공이 확인된 허가(참고 사이트 정리, 2026-11 기준)는 따로 표시
-STARTED = {'2021-15', '2022-104', '2019-33', '2020-56', '2021-108', '2018-81', '2020-55', '2022-106', '2018-18'}  # KOREC-permitted farms in commercial operation (Jeju ones are not in this ledger)
+# 착공 여부는 허가대장에 적히지 않음: 착공식·공사 착수가 보도로 확인된 허가만 따로 표시 (2026-11-06 확인)
+# 2021-108 낙월(2024-03 착공), 2022-104 신안우이(2026-07-16 착공식). 착공 예정만 보도된 사업은 넣지 않음.
+STARTED = {'2021-108', '2022-104'}
 
 
 def clean(s):
