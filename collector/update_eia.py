@@ -2,7 +2,7 @@
 
 Permit numbers for each assessment are in eia_map.json (matched by hand: add a line there for a new project).
 """
-import json, os, sys, time, urllib.parse, urllib.request
+import json, os, sys, time, urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as T
 
 KEY = os.environ.get('DATA_GO_KR_KEY', '').strip()
@@ -23,21 +23,55 @@ def stage(code):
     return code, 'ing'
 
 
+ROWS = 500
+
+
+def reason(e):
+    """A short cause for the log. Never include the request URL: it holds the key."""
+    if isinstance(e, urllib.error.HTTPError):
+        return f'HTTP {e.code}'
+    if isinstance(e, urllib.error.URLError):
+        return f'URLError: {e.reason}'
+    return type(e).__name__
+
+
+def get(page):
+    q = urllib.parse.urlencode({'serviceKey': KEY, 'pageNo': page, 'numOfRows': ROWS})
+    last = None
+    for base in (URL, URL.replace('https://', 'http://', 1)):
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(f'{base}?{q}', headers={'User-Agent': 'power-permit-dashboard/1.0'})
+                x = T.fromstring(urllib.request.urlopen(req, timeout=60).read())
+                code = x.findtext('.//resultCode')
+                if code and code not in ('00', '0', 'NORMAL_CODE'):
+                    raise RuntimeError(f'API 응답 {code} {x.findtext(".//resultMsg") or ""}'.strip())
+                return x
+            except RuntimeError:
+                raise
+            except Exception as e:
+                last = e
+                print(f'  {base.split(":")[0]} {page}쪽 {attempt + 1}회 실패({reason(e)})')
+                time.sleep(5 * (attempt + 1))
+    raise last
+
+
 rows, page = {}, 1
 try:
     while True:
-        q = urllib.parse.urlencode({'serviceKey': KEY, 'pageNo': page, 'numOfRows': 1000})
-        x = T.fromstring(urllib.request.urlopen(f'{URL}?{q}', timeout=120).read())
+        x = get(page)
         items = x.findall('.//item')
         for i in items:
             d = {c.tag: c.text for c in i}
             rows[d.get('eiaCd')] = d
-        if not items or page * 1000 >= int(x.findtext('.//totalCount') or 0):
+        if not items or page * ROWS >= int(x.findtext('.//totalCount') or 0):
             break
         page += 1
         time.sleep(1)
-except Exception as e:  # never print the request URL: it holds the key
-    print(f'환경영향평가 조회 실패({type(e).__name__}): 기존 자료를 유지합니다.')
+    print(f'환경영향평가 목록 {len(rows)}건 조회')
+except Exception as e:
+    msg = str(e) if isinstance(e, RuntimeError) else reason(e)
+    print(f'환경영향평가 조회 실패({msg}): 기존 자료를 유지합니다.')
     raise SystemExit(0)
 
 out = []
