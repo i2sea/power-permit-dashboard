@@ -202,3 +202,21 @@ dash.draw('hcount', (n) => {
 document.querySelectorAll('[data-csv="holds"]').forEach((b) => b.addEventListener('click', () => {
   OW.csv('발전사업허가_보류·불허가', OW.holdRows(), [['심의일', 'date'], ['차수', 'session'], ['안건번호', 'no'], ['결과', 'result'], ['발전원', 'tab'], ['구분', 'kind'], ['사업명', 'name'], ['사유', 'reason'], ['이후 상태', 'status'], ['이후 결과', 'after']]);
 }));
+
+// ---- 검색어가 보류·불허가 목록에도 있으면 검색창 옆에 바로가기 ----
+dash.draw('qhint', (el) => {
+  el.replaceChildren();
+  if (!dash.params().q || dash.data('holds').status !== 'ok') return;
+  const n = OW.rows('holds').filter((r) => OW.qhit(r, ['name', 'session', 'date', 'result', 'reason', 'after'])).length;
+  if (!n) return;
+  const b = OW.el('button', 'ow-btn ow-qhint-btn', `보류·불허가 목록에 ${OW.fi(n)}건 — 보기`);
+  b.type = 'button';
+  b.addEventListener('click', () => {
+    if (dash.params().hs) dash.setParams({ hs: null });
+    const t = document.querySelector('[data-tab="revoke"]');
+    if (t) t.click();
+    const c = document.getElementById('hold-card');
+    if (c) setTimeout(() => c.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  });
+  el.append(b);
+});
