@@ -1,10 +1,14 @@
 // ---- watchlist: next deadline within 18 months (548 days) or already past ----
 const WATCH_DAYS = 548;
-dash.draw('watch', (tb) => {
+OW.watchRows = () => {
   const prm = dash.params();
-  const rows = OW.rows('proj_status')
+  return OW.rows('proj_status')
     .filter((p) => p.active === 1 && p.days_left != null && p.days_left <= WATCH_DAYS && OW.passes(p, { ...prm, stage: '', dl: '' }))
     .sort((a, b) => a.days_left - b.days_left);
+};
+dash.draw('watch', (tb) => {
+  const prm = dash.params();
+  const rows = OW.watchRows();
   OW.tbody(tb, rows, 'permit_no', OW.projCols(), OW.LIMIT);
   tb.querySelectorAll('tr').forEach((tr) => tr.classList.toggle('is-picked', tr.dataset.key === prm.pick));
 });

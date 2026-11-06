@@ -4,7 +4,7 @@
     projects: 'offshore_projects.json', revocations: 'revocations.json', agendas: 'agendas.json',
     rev_agendas: 'revocation_agendas.json', pipeline: 'construction_pipeline.json', committee: 'committee.json',
     ledger_sources: 'ledger_by_source.json', snapshot: 'snapshot.json', operating: 'operating_farms.json',
-    coast: 'korea_coast.json', auctions: 'offshore_auctions.json', eia: 'offshore_eia.json',
+    coast: 'korea_coast.json', auctions: 'offshore_auctions.json', eia: 'offshore_eia.json', changes_log: 'changes_log.json',
   };
   const store = {}, calcs = {}, memo = {}, draws = {}, listeners = [], made = new WeakMap();
   let params = {}, ready = false, queued = false;
@@ -68,7 +68,7 @@
         if (!res.ok) throw new Error(res.status);
         store[id] = { status: 'ok', data: await res.json() };
       } catch (e) {
-        store[id] = { status: 'error', data: [] };
+        store[id] = id === 'changes_log' ? { status: 'ok', data: [] } : { status: 'error', data: [] };
       }
     }));
     // the day count always runs from the day the page is opened

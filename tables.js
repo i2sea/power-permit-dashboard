@@ -72,13 +72,42 @@ dash.draw('sel-stage', (sel) => {
 
 // ---- table helper: tbody drawing with sorting from th buttons ----
 window.OWsort = window.OWsort || {};
+OW.sorted = (tableId, rows) => {
+  const s = OWsort[tableId];
+  if (!s) return rows;
+  const cmp = (a, b) => { const x = a[s.f], y = b[s.f]; if (x == null || x === '') return 1; if (y == null || y === '') return -1; return typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ko'); };
+  return rows.slice().sort((a, b) => cmp(a, b) * (s.dir === 'ascending' ? 1 : -1));
+};
+// paging: one page of `limit` rows; the page resets when the filters or the row count change
+OW.pages = {};
+OW.pager = (table, total, limit) => {
+  const box = table.closest('.ow-tbox');
+  let bar = box && box.nextElementSibling && box.nextElementSibling.classList.contains('ow-pager') ? box.nextElementSibling : null;
+  if (!box) return;
+  if (!bar) { bar = OW.el('div', 'ow-pager'); box.after(bar); }
+  const st = OW.pages[table.id];
+  const n = Math.max(1, Math.ceil(total / limit));
+  bar.replaceChildren();
+  bar.hidden = n <= 1;
+  if (n <= 1) return;
+  const go = (i) => { st.page = Math.min(n - 1, Math.max(0, i)); const tb = table.querySelector('tbody[data-draw]'); if (tb) dash.draw(tb.dataset.draw); box.scrollTop = 0; };
+  const btn = (t, i, dis) => { const b = OW.el('button', 'ow-btn', t); b.type = 'button'; b.disabled = dis; b.onclick = () => go(i); return b; };
+  bar.append(btn('‹ 이전', st.page - 1, st.page === 0),
+    OW.el('span', 'ow-count', `${OW.fi(st.page * limit + 1)}–${OW.fi(Math.min(total, (st.page + 1) * limit))} / ${OW.fi(total)}건 (${st.page + 1}/${n}쪽)`),
+    btn('다음 ›', st.page + 1, st.page >= n - 1));
+};
 OW.tbody = (tb, rows, key, cols, limit) => {
   tb.replaceChildren();
   const table = tb.closest('table');
-  const s = OWsort[table.id];
-  if (s) {
-    const cmp = (a, b) => { const x = a[s.f], y = b[s.f]; if (x == null || x === '') return 1; if (y == null || y === '') return -1; return typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ko'); };
-    rows = rows.slice().sort((a, b) => cmp(a, b) * (s.dir === 'ascending' ? 1 : -1));
+  rows = OW.sorted(table.id, rows);
+  if (limit) {
+    const { pick, ...rest } = dash.params();
+    const sig = `${rows.length}|${JSON.stringify(rest)}`;
+    const st = OW.pages[table.id] || (OW.pages[table.id] = { page: 0, sig });
+    if (st.sig !== sig) { st.sig = sig; st.page = 0; }
+    OW.pager(table, rows.length, limit);
+    rows = rows.slice(st.page * limit, (st.page + 1) * limit);
+    limit = 0;
   }
   if (!rows.length && dash.params().q) {
     const tr = document.createElement('tr'), td = OW.el('td', 'ow-lite', '검색 결과가 없습니다.');
@@ -125,7 +154,7 @@ document.querySelectorAll('table.ow-table').forEach((table) => {
 });
 
 // ---- one row per project: columns shared by the list and the watchlist ----
-OW.LIMIT = 300;
+OW.LIMIT = 100;
 OW.projCols = () => {
   const E = OW.el;
   const live = (p) => p.active === 1 && p.stage !== '준공/상업운전' && p.deadline_status !== '확인 필요';
@@ -139,7 +168,9 @@ OW.projCols = () => {
   const chip = (cls, text, col) => { const c = E('span', cls, text); if (col) { c.style.color = OW.ink(col); c.style.borderColor = col; c.style.background = OW.tint(col); } return c; };
   return [
     { f: 'permit_no', render: (td, p) => {
-      td.append(E('div', 'ow-pn', p.permit_no));
+      const line = E('div', 'ow-pnline');
+      line.append(OW.starBtn(p.permit_no), E('span', 'ow-pn', p.permit_no));
+      td.append(line);
       if (p.prev_permit_no) td.append(E('div', 'ow-pn-s', `구 ${p.prev_permit_no} 승계`));
     } },
     { f: 'project_name', cls: 'ow-wrap ow-c-name', render: (td, p) => {
@@ -166,14 +197,18 @@ OW.projCols = () => {
     { f: 'stage', cls: 'ow-c-stage', render: (td, p) => {
       td.append(chip('ow-badge', p.stage, OW.stageColor(p.stage)));
       const started = /^(착공|준공)/.test(p.stage);
-      const steps = [['①허가', true], ['②환경', p.eia_group === 'done'], ['③입찰', !!p.auction], ['④인가·착공', started], ['⑤준공', p.stage === '준공/상업운전']];
+      const steps = [['①허가', true], ['②환경', p.eia_group === 'done' ? 'on' : p.eia_group === 'na' ? 'na' : ''], ['③입찰', !!p.auction], ['④인가·착공', started], ['⑤준공', p.stage === '준공/상업운전']];
       const box = E('div', 'ow-steps');
-      steps.forEach(([t, on]) => box.append(E('span', 'ow-step' + (on ? ' on' : ''), t)));
+      steps.forEach(([t, on]) => {
+        const s = E('span', 'ow-step' + (on === 'na' ? ' na' : on ? ' on' : ''), on === 'na' ? `${t} 해당없음` : t);
+        if (on === 'na') s.title = '100 MW 미만이라 환경영향평가 대상이 아닙니다.';
+        box.append(s);
+      });
       td.append(box);
     } },
     { f: 'history', cls: 'ow-wrap ow-c-detail ow-hide-s', render: (td, p) => {
       const tags = E('div', 'ow-tags');
-      if (p.eia_stage) tags.append(chip('ow-tag', `환경영향평가: ${p.eia_stage}${p.eia_date ? ` (${p.eia_date})` : ''}`, p.eia_group === 'done' ? OW.css('--ow-green') : p.eia_group === 'draft' ? OW.css('--ow-sky') : OW.css('--ow-slate')));
+      if (p.eia_stage) tags.append(chip('ow-tag', `환경영향평가: ${p.eia_stage}${p.eia_date ? ` (${p.eia_date})` : ''}`, p.eia_group === 'done' ? OW.css('--ow-green') : p.eia_group === 'draft' ? OW.css('--ow-sky') : p.eia_group === 'need' ? OW.css('--ow-orange') : OW.css('--ow-slate')));
       if (p.auction) p.auction.split(' · ').forEach((a) => tags.append(chip('ow-tag', a, OW.css('--ow-amber'))));
       String(p.change_tags || '').split(', ').filter(Boolean).forEach((t) => tags.append(chip('ow-tag', t, /반납|취소/.test(t) ? OW.css('--ow-red') : /양수|주식/.test(t) ? OW.css('--ow-violet') : OW.css('--ow-slate'))));
       if (tags.childElementCount) td.append(tags);
@@ -183,10 +218,14 @@ OW.projCols = () => {
   ];
 };
 
-dash.draw('ptable', (tb) => {
+OW.listRows = () => {
   const d = dash.data('proj_status');
   const prm = dash.params();
-  const rows = d.status === 'ok' ? d.data.filter((p) => OW.passes(p, prm)) : [];
+  return d.status === 'ok' ? d.data.filter((p) => OW.passes(p, prm)) : [];
+};
+dash.draw('ptable', (tb) => {
+  const prm = dash.params();
+  const rows = OW.listRows();
   OW.tbody(tb, rows, 'permit_no', OW.projCols(), OW.LIMIT);
   tb.querySelectorAll('tr').forEach((tr) => tr.classList.toggle('is-picked', tr.dataset.key === prm.pick));
 });
@@ -194,7 +233,7 @@ dash.draw('pcount', (n) => {
   const d = dash.data('proj_status');
   if (d.status !== 'ok') { n.textContent = '—'; return; }
   const rows = d.data.filter((p) => OW.passes(p, dash.params()));
-  n.textContent = `${OW.fi(rows.length)}건 · ${OW.mw(d3.sum(rows, (p) => p.capacity_mw))} MW${rows.length > OW.LIMIT ? ` (앞의 ${OW.fi(OW.LIMIT)}건만 표시, 검색·필터로 좁혀 보세요)` : ''}`;
+  n.textContent = `${OW.fi(rows.length)}건 · ${OW.mw(d3.sum(rows, (p) => p.capacity_mw))} MW${rows.length > OW.LIMIT ? ` (${OW.fi(OW.LIMIT)}건씩 나눠 표시)` : ''}`;
 });
 
 // ---- revocations ----

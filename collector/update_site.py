@@ -39,6 +39,21 @@ for name, least in MINIMUM.items():
 for source, target in OUTPUT.items():
     shutil.copy(os.path.join(HERE, 'out', source), os.path.join(DATA, target))
 shutil.copy(os.path.join(HERE, 'state_next.json'), state_file)
+# change log for the page's 「최근 변경」: committee changes and new board posts (not on the very first run)
+if not result.get('first_run') and result.get('posts'):
+    import datetime
+    log_file = os.path.join(DATA, 'changes_log.json')
+    try:
+        log = json.load(open(log_file, encoding='utf-8'))
+    except Exception:
+        log = []
+    day = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime('%Y-%m-%d')
+    for post in result['posts']:
+        kind = '위원 변경' if post.startswith('조직도 변경') else '전기위원회 새 글'
+        text = post.replace('조직도 변경 - ', '').replace('|', ' · ')
+        if not any(e['date'] == day and e['text'] == text for e in log):
+            log.append({'date': day, 'kind': kind, 'text': text})
+    json.dump(log[-300:], open(log_file, 'w', encoding='utf-8'), ensure_ascii=False)
 changes = os.path.join(HERE, 'out', 'changes.json')
 if os.path.exists(changes):
     summary = os.environ.get('GITHUB_STEP_SUMMARY')

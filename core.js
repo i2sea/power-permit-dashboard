@@ -2,8 +2,18 @@
 dash.calc('proj_status', {
   inputs: ['projects', 'snapshot', 'auctions', 'eia'],
   title: '사업별 다음 기한·상태',
-  description: '기준일과 공사계획인가 기한·준비기간(준공기한)으로 다음 기한, 남은 일수, 기한 상태를 구하고, 경쟁입찰 선정 이력을 붙입니다.',
+  description: '기준일과 공사계획인가 기한·준비기간(준공기한)으로 다음 기한, 남은 일수, 기한 상태를 구하고, 경쟁입찰 선정 이력과 환경영향평가 대상 여부(100 MW 기준)를 붙입니다.',
   fn: (projects, snapshot, auctions, eia) => {
+    // 환경영향평가법 시행령 별표3: 발전시설 10만 kW(100 MW) 이상이면 환경영향평가 대상.
+    // 해상풍력 50 MW 이상은 해역이용영향평가, 그 미만은 해역이용협의(해양환경관리법). 해상풍력만 판정합니다.
+    const eiaOf = (p, e) => {
+      if (e) return { eia_stage: e.eia_stage, eia_group: e.eia_group, eia_date: e.eia_date, eia_name: e.eia_name, eia_note: '' };
+      if (p.source !== '해상풍력') return { eia_stage: '', eia_group: '', eia_date: '', eia_name: '', eia_note: '' };
+      const cap = Number(p.capacity_mw) || 0;
+      if (cap >= 100) return { eia_stage: '대상 · 협의 기록 미연결', eia_group: 'need', eia_date: '', eia_name: '', eia_note: '100 MW 이상이라 환경영향평가 대상이지만 협의 목록에서 사업을 찾아 연결하지 못했습니다.' };
+      return { eia_stage: '대상 아님 (100 MW 미만)', eia_group: 'na', eia_date: '', eia_name: '',
+        eia_note: cap >= 50 ? '50 MW 이상이라 해역이용영향평가 대상입니다.' : '해역이용협의 대상입니다.' };
+    };
     const env = {};
     for (const e of eia) env[e.permit_no] = e;
     const won = {};
@@ -23,10 +33,7 @@ dash.calc('proj_status', {
       return { ...p, next_deadline: next, next_type: next ? (useConst ? '공사계획인가' : '준비기간(준공)') : '',
         days_left: days, deadline_status: status, active: ended ? 0 : 1, tab: main.includes(p.source) ? p.source : '기타',
         auction: (won[p.permit_no] || []).join(' · '),
-        eia_stage: env[p.permit_no] ? env[p.permit_no].eia_stage : '',
-        eia_group: env[p.permit_no] ? env[p.permit_no].eia_group : '',
-        eia_date: env[p.permit_no] ? env[p.permit_no].eia_date : '',
-        eia_name: env[p.permit_no] ? env[p.permit_no].eia_name : '',
+        ...eiaOf(p, env[p.permit_no]),
         const_days: p.const_deadline ? Math.round((Date.parse(p.const_deadline + 'T00:00:00Z') - t0) / 86400000) : null,
         prep_days: p.prep_deadline ? Math.round((Date.parse(p.prep_deadline + 'T00:00:00Z') - t0) / 86400000) : null };
     });
@@ -279,6 +286,7 @@ window.OW = (() => {
     if (prm.stage && p.stage !== prm.stage) return false;
     if (prm.dl && p.deadline_status !== prm.dl) return false;
     if (prm.chg && p.operator_changed !== prm.chg) return false;
+    if (prm.star && !(window.OW && OW.stars && OW.stars.has(p.permit_no))) return false;
     if (prm.q) {
       const hay = `${p.permit_no} ${p.project_name} ${p.operator} ${p.initial_operator} ${p.region} ${p.region_local} ${p.location}`.toLowerCase();
       if (!hay.includes(String(prm.q).toLowerCase())) return false;

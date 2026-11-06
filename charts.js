@@ -162,7 +162,7 @@ dash.draw('detail', (el) => {
   const cite = (node, field) => { node.dataset.source = 'proj_status'; node.dataset.field = field; node.dataset.where = 'permit_no=' + encodeURIComponent(p.permit_no); return node; };
   const head = E('div', 'ow-dhead');
   const st = E('span', 'ow-badge', p.deadline_status); st.style.borderColor = OW.statusColor(p.deadline_status); st.style.color = OW.ink(OW.statusColor(p.deadline_status)); st.style.background = OW.tint(OW.statusColor(p.deadline_status));
-  head.append(cite(E('div', 'ow-dtitle', p.project_name), 'project_name'), st);
+  head.append(OW.starBtn(p.permit_no), cite(E('div', 'ow-dtitle', p.project_name), 'project_name'), st);
   const close = E('button', 'ow-x', '닫기'); close.type = 'button'; close.onclick = () => dash.setParams({ pick: null });
   head.append(close);
   const dl = E('dl', 'ow-dl');
@@ -180,7 +180,11 @@ dash.draw('detail', (el) => {
   add('준비기간(준공기한)', p.prep_deadline, 'prep_deadline');
   add('다음 기한까지', p.next_deadline ? `${OW.dday(p.days_left)} (${p.next_type})` : '–');
   if (p.auction) add('경쟁입찰', p.auction, 'auction');
-  if (p.eia_stage) { add('환경영향평가', `${p.eia_stage}${p.eia_date ? ` (${p.eia_date})` : ''}`, 'eia_stage'); add('평가 사업명', p.eia_name, 'eia_name'); }
+  if (p.eia_stage) {
+    add('환경영향평가', `${p.eia_stage}${p.eia_date ? ` (${p.eia_date})` : ''}`, 'eia_stage');
+    if (p.eia_name) add('평가 사업명', p.eia_name, 'eia_name');
+    if (p.eia_note) add('평가 구분', p.eia_note, 'eia_note');
+  }
   el.append(head, dl);
   let tl = [];
   try { tl = JSON.parse(p.timeline || '[]'); } catch (e) { tl = []; }
