@@ -78,24 +78,25 @@ OW.sorted = (tableId, rows) => {
   const cmp = (a, b) => { const x = a[s.f], y = b[s.f]; if (x == null || x === '') return 1; if (y == null || y === '') return -1; return typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'ko'); };
   return rows.slice().sort((a, b) => cmp(a, b) * (s.dir === 'ascending' ? 1 : -1));
 };
-// paging: one page of `limit` rows; the page resets when the filters or the row count change
+// paging: one page of `limit` rows; the page resets when the filters or the row count change.
+// The pager under a table is its own drawing (data-draw="pager" data-table="<table id>").
 OW.pages = {};
-OW.pager = (table, total, limit) => {
-  const box = table.closest('.ow-tbox');
-  let bar = box && box.nextElementSibling && box.nextElementSibling.classList.contains('ow-pager') ? box.nextElementSibling : null;
-  if (!box) return;
-  if (!bar) { bar = OW.el('div', 'ow-pager'); box.after(bar); }
-  const st = OW.pages[table.id];
-  const n = Math.max(1, Math.ceil(total / limit));
-  bar.replaceChildren();
-  bar.hidden = n <= 1;
+dash.draw('pager', (el) => {
+  el.replaceChildren();
+  const id = el.dataset.table, st = OW.pages[id];
+  if (!st) return;
+  const n = Math.max(1, Math.ceil(st.total / st.limit));
   if (n <= 1) return;
-  const go = (i) => { st.page = Math.min(n - 1, Math.max(0, i)); const tb = table.querySelector('tbody[data-draw]'); if (tb) dash.draw(tb.dataset.draw); box.scrollTop = 0; };
+  const go = (i) => {
+    st.page = Math.min(n - 1, Math.max(0, i));
+    document.querySelectorAll(`#${id} tbody[data-draw]`).forEach((tb) => dash.draw(tb.dataset.draw));
+    document.querySelectorAll(`#${id}`).forEach((t) => { const box = t.closest('.ow-tbox'); if (box) box.scrollTop = 0; });
+  };
   const btn = (t, i, dis) => { const b = OW.el('button', 'ow-btn', t); b.type = 'button'; b.disabled = dis; b.onclick = () => go(i); return b; };
-  bar.append(btn('‹ 이전', st.page - 1, st.page === 0),
-    OW.el('span', 'ow-count', `${OW.fi(st.page * limit + 1)}–${OW.fi(Math.min(total, (st.page + 1) * limit))} / ${OW.fi(total)}건 (${st.page + 1}/${n}쪽)`),
+  el.append(btn('‹ 이전', st.page - 1, st.page === 0),
+    OW.el('span', 'ow-count', `${OW.fi(st.page * st.limit + 1)}–${OW.fi(Math.min(st.total, (st.page + 1) * st.limit))} / ${OW.fi(st.total)}건 (${st.page + 1}/${n}쪽)`),
     btn('다음 ›', st.page + 1, st.page >= n - 1));
-};
+});
 OW.tbody = (tb, rows, key, cols, limit) => {
   tb.replaceChildren();
   const table = tb.closest('table');
@@ -105,9 +106,11 @@ OW.tbody = (tb, rows, key, cols, limit) => {
     const sig = `${rows.length}|${JSON.stringify(rest)}`;
     const st = OW.pages[table.id] || (OW.pages[table.id] = { page: 0, sig });
     if (st.sig !== sig) { st.sig = sig; st.page = 0; }
-    OW.pager(table, rows.length, limit);
+    st.total = rows.length; st.limit = limit;
+    if (st.page * limit >= rows.length) st.page = 0;
     rows = rows.slice(st.page * limit, (st.page + 1) * limit);
     limit = 0;
+    dash.draw('pager');
   }
   if (!rows.length && dash.params().q) {
     const tr = document.createElement('tr'), td = OW.el('td', 'ow-lite', '검색 결과가 없습니다.');

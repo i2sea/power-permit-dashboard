@@ -22,11 +22,9 @@
   document.querySelectorAll('[data-starfilter]').forEach((b) => b.addEventListener('click', () => dash.setParams({ star: dash.params().star ? null : '1' })));
   dash.onData(() => {
     const on = !!dash.params().star;
-    document.querySelectorAll('[data-starfilter]').forEach((b) => {
-      b.setAttribute('aria-pressed', String(on));
-      b.textContent = `★ 관심 사업만${OW.stars.size ? ` (${OW.fi(OW.stars.size)})` : ''}`;
-    });
+    document.querySelectorAll('[data-starfilter]').forEach((b) => b.setAttribute('aria-pressed', String(on)));
   });
+  dash.draw('starn', (el) => { el.textContent = OW.stars.size ? ` (${OW.fi(OW.stars.size)})` : ''; });
 })();
 
 // ---- CSV download (opens in Excel; UTF-8 with BOM so Korean shows correctly) ----
@@ -45,7 +43,7 @@ OW.csv = (name, rows, cols) => {
   const a = OW.el('a');
   const ref = ((OW.rows('snapshot').find((r) => r.item === '기준일') || {}).value || '').replace(/-/g, '');
   a.href = url; a.download = `${name}_${ref}.csv`;
-  document.body.append(a); a.click(); a.remove();
+  a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 document.querySelectorAll('[data-csv]').forEach((b) => b.addEventListener('click', () => {
@@ -140,36 +138,35 @@ document.querySelectorAll('#rctable').forEach((t) => t.addEventListener('click',
   if (tr && !tr.classList.contains('no-pick')) dash.setParams({ pick: tr.dataset.pick });
 }));
 
-// ---- refresh status: last automatic run, read from GitHub (public repositories need no sign-in) ----
+// ---- refresh status: last automatic run, read from GitHub (public repositories need no sign-in).
+// Shown only on the GitHub Pages copy; elsewhere the drawing stays empty.
 (() => {
-  const box = document.querySelector('[data-runstatus]');
-  if (!box) return;
+  let state = null;
   const host = location.hostname;
-  if (!host.endsWith('.github.io')) { box.hidden = true; return; }
   const owner = host.split('.')[0], repo = location.pathname.split('/').filter(Boolean)[0];
-  if (!repo) { box.hidden = true; return; }
+  if (host.endsWith('.github.io') && repo) {
+    fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/update.yml/runs?per_page=20`, { headers: { Accept: 'application/vnd.github+json' } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((j) => { state = { runs: (j.workflow_runs || []).filter((r) => r.status === 'completed'), link: `https://github.com/${owner}/${repo}/actions/workflows/update.yml` }; dash.draw('runstatus'); })
+      .catch(() => {});
+  }
   const fmt = (s) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(s));
-  fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/update.yml/runs?per_page=20`, { headers: { Accept: 'application/vnd.github+json' } })
-    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-    .then((j) => {
-      const runs = (j.workflow_runs || []).filter((r) => r.status === 'completed');
-      const last = runs[0], good = runs.find((r) => r.conclusion === 'success');
-      box.replaceChildren();
-      if (!last) { box.hidden = true; return; }
-      const link = OW.el('a', 'ow-link', '실행 기록');
-      link.href = `https://github.com/${owner}/${repo}/actions/workflows/update.yml`; link.target = '_blank'; link.rel = 'noopener';
-      const age = good ? (Date.now() - Date.parse(good.updated_at)) / 3600000 : Infinity;
-      if (last.conclusion !== 'success') {
-        box.className = 'ow-runstatus bad';
-        box.append(`마지막 자동 갱신(${fmt(last.updated_at)})이 실패했습니다. 마지막 성공 ${good ? fmt(good.updated_at) : '없음'} · 자료가 최신이 아닐 수 있습니다 · `, link);
-      } else if (age > 36) {
-        box.className = 'ow-runstatus warn';
-        box.append(`마지막 자동 갱신 확인 ${fmt(good.updated_at)} (${Math.round(age / 24)}일 전) · `, link);
-      } else {
-        box.className = 'ow-runstatus';
-        box.append(`자동 갱신 확인 ${fmt(good.updated_at)} 정상 · 매일 08:44·17:44 · `, link);
-      }
-      box.hidden = false;
-    })
-    .catch(() => { box.hidden = true; });
+  dash.draw('runstatus', (el) => {
+    el.replaceChildren();
+    el.className = 'ow-runstatus';
+    if (!state || !state.runs.length) return;
+    const last = state.runs[0], good = state.runs.find((r) => r.conclusion === 'success');
+    const link = OW.el('a', 'ow-link', '실행 기록');
+    link.href = state.link; link.target = '_blank'; link.rel = 'noopener';
+    const age = good ? (Date.now() - Date.parse(good.updated_at)) / 3600000 : Infinity;
+    if (last.conclusion !== 'success') {
+      el.className = 'ow-runstatus bad';
+      el.append(`마지막 자동 갱신(${fmt(last.updated_at)})이 실패했습니다. 마지막 성공 ${good ? fmt(good.updated_at) : '없음'} · 자료가 최신이 아닐 수 있습니다 · `, link);
+    } else if (age > 36) {
+      el.className = 'ow-runstatus warn';
+      el.append(`마지막 자동 갱신 확인 ${fmt(good.updated_at)} (${Math.round(age / 24)}일 전) · `, link);
+    } else {
+      el.append(`자동 갱신 확인 ${fmt(good.updated_at)} 정상 · 매일 08:44·17:44 · `, link);
+    }
+  });
 })();
