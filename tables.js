@@ -57,12 +57,21 @@ dash.draw('gantt', (el) => {
 const fillSelect = (sel, values, param) => {
   const cur = dash.params()[param] ?? '';
   const keep = new Option(sel.dataset.all || '전체', '');
-  sel.replaceChildren(keep, ...values.map((v) => new Option(v, v)));
+  sel.replaceChildren(keep, ...values.map((v) => (Array.isArray(v) ? new Option(v[1], v[0]) : new Option(v, v))));
   sel.value = cur;
   sel.onchange = () => dash.setParams({ [param]: sel.value || null });
 };
 dash.draw('sel-region', (sel) => {
-  const v = [...new Set(OW.rows('proj_status').map((p) => p.region))].sort();
+  const src = dash.params().src;
+  const g = {};
+  OW.rows('proj_status').filter((p) => !src || p.tab === src).forEach((p) => {
+    const r = (g[p.region || '기타'] ||= { n: 0, mw: 0 });
+    r.n += 1; r.mw += Number(p.capacity_mw) || 0;
+  });
+  const v = Object.entries(g).sort((a, b) => b[1].n - a[1].n || b[1].mw - a[1].mw)
+    .map(([k, r]) => [k, `${k} (${OW.fi(r.n)}건 / ${OW.mw(r.mw)}MW)`]);
+  const cur = dash.params().region;
+  if (cur && !g[cur]) v.push([cur, `${cur} (0건)`]);
   fillSelect(sel, v, 'region');
 });
 dash.draw('sel-stage', (sel) => {
