@@ -127,10 +127,11 @@ dash.draw('ctable', (tb) => {
 
 // ---- 허가 보류·불허가 안건 (아직 허가받지 못한 신청) ----
 dash.calc('holds', {
-  inputs: ['agendas'],
+  inputs: ['agendas', 'agendas_old'],
   title: '허가 보류·불허가 안건',
   description: '위원회 개최결과에서 발전사업 허가·변경허가 안건 중 심의보류·불허가된 것을 모읍니다. 「상기 N건」 사유는 같은 회차의 해당 번호 안건에 나눠 붙이고, 같은 사업명이 이후 회차에서 허가되었는지 찾아 붙입니다.',
-  fn: (agendas) => {
+  fn: (agendas0, agendas_old) => {
+    const agendas = [...agendas0, ...(agendas_old || [])];
     const agTab = (t) => (/해상/.test(t) ? '해상풍력' : /풍력/.test(t) ? '육상풍력' : /태양/.test(t) ? '태양광' : /연료전지/.test(t) ? '연료전지' : '기타');
     const isPermit = (t) => /발전사업\s*(변경)?\s*허가/.test(t) && !/취소/.test(t);
     const head = (t) => String(t || '').split('※')[0].trim();
@@ -158,7 +159,7 @@ dash.calc('holds', {
       const later = list.filter((b) => b.date > a.date && keyOf(b.title) === k).sort((x, y) => (x.date < y.date ? -1 : 1));
       const pass = later.find((b) => PASS.test(b.result || ''));
       const last = later[later.length - 1];
-      const after = pass ? `이후 ${pass.result} (${pass.date} ${pass.session})` : last ? `이후 ${last.result} (${last.date} ${last.session})` : '';
+      const after = pass ? `이후 ${pass.result} (${pass.date} ${pass.session})` : last ? `이후 ${last.result} (${last.date} ${last.session})` : (a.note || '');
       out.push({ id: a.id, date: a.date, session: a.session, no: a.no, result: a.result,
         kind: /변경\s*허가/.test(head(a.title)) ? '변경허가' : '신규 허가', tab: agTab(a.title), name: nameOf(a.title),
         reason: String(reason[a.id] || '').replace(/^상기\s*[^은는]*[은는]\s*/, ''),
