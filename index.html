@@ -171,6 +171,7 @@
 .ow-odet summary{cursor:pointer;font-weight:600;color:color-mix(in srgb,var(--c) 75%,var(--color-fg))}
 .ow-olist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,7.5rem),1fr));gap:.4rem;margin-top:.5rem}
 .ow-qbar[hidden]{display:none}
+.ow-qbar .ow-qregion{flex:0 0 auto;font-size:var(--cds-font-size-body);padding:.5rem .6rem;background:var(--color-panel)}
 .ow-badge:empty{display:none}
 .ow-qbar input{font-size:var(--cds-font-size-body);padding:.5rem .75rem;background:var(--color-panel)}
 .ow-qres:empty{display:none}
@@ -249,6 +250,7 @@
   </nav>
 
   <div class="ow-controls ow-qbar" data-qbar>
+    <select class="ow-qregion" data-draw="sel-region" data-source="proj_status" data-all="전체 지역" aria-label="광역지역"></select>
     <input class="ow-q" id="ow-q" type="search" placeholder="사업명·사업자·허가번호·지역으로 사업 검색" aria-label="사업 검색">
     <button type="button" class="ow-btn" data-qclear>지우기</button>
   </div>
@@ -674,7 +676,7 @@
     let t;
     q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => dash.setParams({ q: q.value.trim() || null }), 200); });
   });
-  document.querySelectorAll('[data-qclear]').forEach((b) => b.addEventListener('click', () => dash.setParams({ q: null })));
+  document.querySelectorAll('[data-qclear]').forEach((b) => b.addEventListener('click', () => dash.setParams({ q: null, region: null })));
   document.querySelectorAll('.ow-dlsel').forEach((s) => s.addEventListener('change', () => dash.setParams({ dl: s.value || null })));
   document.querySelectorAll('.ow-chgsel').forEach((s) => s.addEventListener('change', () => dash.setParams({ chg: s.value || null })));
   document.querySelectorAll('[data-cg]').forEach((b) => b.addEventListener('click', () => dash.setParams({ cg: b.dataset.cg || null })));

@@ -266,7 +266,7 @@ dash.draw('revreason', (el) => {
 });
 dash.draw('rtable', (tb) => {
   const prm = dash.params();
-  const rows = OW.rows('rev_by_permit').filter((r) => (!prm.src || OW.tabOf(r.source) === prm.src) && OW.qhit(r, ['permit_no', 'project_name', 'company', 'region', 'source', 'reason']));
+  const rows = OW.rows('rev_by_permit').filter((r) => (!prm.src || OW.tabOf(r.source) === prm.src) && (!prm.region || String(r.region || '').startsWith(prm.region)) && OW.qhit(r, ['permit_no', 'project_name', 'company', 'region', 'source', 'reason']));
   const col = (r) => (r.stage_code === 'revoked' ? OW.css('--ow-red') : r.stage_code === 'hearing' ? OW.css('--ow-amber') : OW.css('--cds-chart-muted'));
   OW.tbody(tb, rows, 'permit_no', [
     { f: 'permit_no', cls: 'ow-mono' },
@@ -287,7 +287,7 @@ dash.draw('rtable', (tb) => {
 // ---- operating farms, agendas, snapshot ----
 dash.draw('otable', (tb) => {
   const prm = dash.params();
-  const rows = OW.rows('ops_all').filter((r) => (!prm.src || r.tab === prm.src) && OW.qhit(r, ['name', 'region', 'turbine', 'spc', 'authority']));
+  const rows = OW.rows('ops_all').filter((r) => (!prm.src || r.tab === prm.src) && (!prm.region || String(r.region || '').startsWith(prm.region)) && OW.qhit(r, ['name', 'region', 'turbine', 'spc', 'authority']));
   const max = d3.max(rows, (r) => r.capacity_mw) || 1;
   OW.tbody(tb, rows, 'name', [
     { f: 'name', cls: 'ow-wrap' },

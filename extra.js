@@ -16,7 +16,7 @@ dash.draw('watch', (tb) => {
 // ---- construction-stage pipeline ----
 dash.draw('btable', (tb) => {
   const prm = dash.params();
-  const rows = OW.rows('proj_status').filter((p) => p.stage === '착공/공사계획인가' && OW.passes(p, { ...prm, stage: '', dl: '', chg: '', region: '' }));
+  const rows = OW.rows('proj_status').filter((p) => p.stage === '착공/공사계획인가' && OW.passes(p, { ...prm, stage: '', dl: '', chg: '' }));
   const max = d3.max(rows, (r) => r.capacity_mw) || 1;
   OW.tbody(tb, rows, 'permit_no', [
     { f: 'permit_no', cls: 'ow-mono' },
