@@ -242,7 +242,7 @@
     <button type="button" role="tab" data-tab="overview" aria-selected="true">개요·지도</button>
     <button type="button" role="tab" data-tab="deadlines" aria-selected="false">기한 관리</button>
     <button type="button" role="tab" data-tab="list" aria-selected="false">허가 사업 목록</button>
-    <button type="button" role="tab" data-tab="revoke" aria-selected="false">취소·청문</button>
+    <button type="button" role="tab" data-tab="revoke" aria-selected="false">취소·청문·보류</button>
     <button type="button" role="tab" data-tab="operating" aria-selected="false">가동 단지·심의</button>
     <button type="button" role="tab" data-tab="ledger" aria-selected="false">전체 허가·위원회</button>
     <button type="button" role="tab" data-tab="notes" aria-selected="false">데이터 주석</button>
@@ -485,6 +485,35 @@
         </table>
       </div>
     </div>
+    <div class="ow-card" id="hold-card">
+      <div class="ow-cardhead">
+        <h2>허가 보류·불허가 안건 (아직 허가받지 못한 신청)</h2>
+        <button type="button" class="ow-btn" data-csv="holds">엑셀(CSV) 받기</button>
+      </div>
+      <p class="ow-note">위원회 개최결과(2025년~)에서 발전사업 허가·변경허가 안건 중 심의보류·불허가된 것입니다. 같은 사업명이 이후 회차에서 허가되었으면 「이후 허가됨」으로 표시합니다(이름이 바뀌면 찾지 못할 수 있음). 심의에 오르기 전 신청과 사업자 철회는 공개되지 않아 들어 있지 않습니다. 위에서 고른 발전원을 따릅니다.</p>
+      <div class="ow-controls">
+        <button type="button" class="ow-chip" data-hs="">전체</button>
+        <button type="button" class="ow-chip" data-hs="재심의 기록 없음">재심의 기록 없음</button>
+        <button type="button" class="ow-chip" data-hs="재심의 후 미허가">재심의 후 미허가</button>
+        <button type="button" class="ow-chip" data-hs="불허가">불허가</button>
+        <button type="button" class="ow-chip" data-hs="이후 허가됨">이후 허가됨</button>
+        <span class="ow-count" data-draw="hcount" data-source="holds">—</span>
+      </div>
+      <div class="ow-tbox">
+        <table class="ow-table" id="htable" data-source="holds" data-row-key="id">
+          <thead><tr>
+            <th data-field="date"><button type="button">심의일</button></th>
+            <th data-field="session"><button type="button">차수</button></th>
+            <th data-field="result"><button type="button">결과</button></th>
+            <th data-field="name"><button type="button">사업명</button></th>
+            <th data-field="reason"><button type="button">사유</button></th>
+            <th data-field="status"><button type="button">이후 상태</button></th>
+          </tr></thead>
+          <tbody data-draw="htable"></tbody>
+        </table>
+      </div>
+      <div class="ow-pager" data-draw="pager" data-table="htable"></div>
+    </div>
   </section>
 
   <!-- ===== 가동 단지·심의 ===== -->
@@ -587,6 +616,7 @@
           <li><b>환경영향평가 대상 판정</b> — 「환경영향평가법 시행령」 별표3에 따라 발전시설 설비용량 10만 kW(100 MW) 이상이면 환경영향평가 대상으로 봅니다(2023년 3월 개정으로 신재생 발전시설도 10만 kW 기준). 해상풍력 허가 가운데 협의 목록에 연결되지 않은 100 MW 이상 허가는 「대상 · 협의 기록 미연결」, 100 MW 미만은 「대상 아님」으로 표시하고 진행 단계의 ②환경을 「해당없음」으로 둡니다. 100 MW 미만 해상풍력은 「해양환경관리법」에 따라 50 MW 이상이면 해역이용영향평가, 그 미만이면 해역이용협의 대상입니다. 판정은 허가 한 건의 용량 기준이라, 여러 허가로 나눈 한 사업은 합쳐서 대상이 될 수 있고, 해상풍력 특별법(2026년 3월 시행)의 계획입지 사업은 절차가 다를 수 있습니다. 육상풍력·태양광 등 다른 발전원은 협의 목록과 연결하지 않아 판정하지 않습니다.</li>
           <li><b>최근 변경</b> — 허가대장 변동 이력·허가취소/청문 공고·위원회 개최결과의 날짜로 최근 90일을 모읍니다. 위원 변경과 새 게시물은 자동 갱신이 그때그때 기록한 로그(data/changes_log.json)에서 나옵니다.</li>
           <li><b>관심 사업</b> — ☆로 표시한 사업은 지금 쓰는 브라우저에만 저장되고 다른 사람과 공유되지 않습니다.</li>
+          <li><b>허가 보류·불허가</b> — 위원회 개최결과(2025년~)의 발전사업 허가·변경허가 안건 중 심의보류·불허가된 것을 취소·청문·보류 탭에 모았습니다. 「상기 N건(4호~6호)」처럼 묶인 사유는 그 회차의 해당 번호 안건에 나눠 붙였고, 같은 사업명이 이후 회차에서 허가·조건부허가·허가기준충족되면 「이후 허가됨」으로 봅니다. 사업명이 바뀐 경우나 개최결과에 없는 처리는 찾지 못하고, 심의 전 신청과 사업자 철회는 공개 자료가 없습니다.</li>
           <li><b>진행 단계 표시</b> — ②환경은 협의 완료일 때, ③입찰은 위 목록에 있을 때, ④인가·착공과 ⑤준공은 진행 단계로 켭니다. ④는 착공이 보도로 확인된 사업만 켜며, 공사계획인가만 받고 착공 전인 사업은 확인된 사례가 없어 따로 표시하지 않습니다. 계통연계는 한전이 사업별 이용계약 현황을 공개하지 않아(공개 API는 배전선로 여유용량뿐) 표시하지 않고, 진행률(%)은 근거 자료가 없어 표시하지 않습니다.</li>
           <li><b>지도 바탕</b> — 통계청 2013 시도 경계(southkorea-maps)를 단순화했습니다.</li>
         </ul>
