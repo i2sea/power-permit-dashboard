@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발전사업 허가·진행상황·취소현황 통합 대시보드</title>
+<link rel="stylesheet" href="base.css">
+<script src="vendor/d3.min.js"></script>
+<script src="dash-shim.js"></script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+.ow{font-family:var(--font-anthropic-sans);color:var(--color-fg);display:flex;flex-direction:column;gap:var(--cds-gap-lg)}
+.ow b{font-weight:600}
+.ow-head{display:flex;flex-direction:column;gap:var(--cds-gap-xs)}
+.ow-title{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0;line-height:1.25}
+.ow-lede{margin:0;font-size:var(--cds-font-size-body);line-height:1.6;max-width:62rem}
+.ow-src{margin:0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.ow-tabs{display:flex;flex-wrap:wrap;gap:var(--cds-gap-xs);border-bottom:1px solid var(--color-border-line);padding-bottom:var(--cds-pad-xs);position:sticky;top:0;background:var(--color-bg);z-index:3}
+.ow-tabs button,.ow-chip,.ow-btn,.ow-x,.ow-zbtn{font:inherit;font-size:var(--cds-font-size-caption);border:1px solid var(--color-border-line);background:var(--color-panel);color:var(--color-fg);border-radius:999px;padding:.3rem .8rem;cursor:pointer}
+.ow-tabs button[aria-selected=true],.ow-chip[aria-pressed=true]{background:var(--color-fg);color:var(--color-bg);border-color:var(--color-fg)}
+.ow-page{display:flex;flex-direction:column;gap:var(--cds-gap-md)}
+.ow-page[hidden]{display:none}
+.ow-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr));gap:var(--cds-gap-md)}
+.ow-tile{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md);display:flex;flex-direction:column;gap:2px}
+.ow-tile .lab{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.ow-tile .num{font-family:var(--font-anthropic-serif);font-size:var(--cds-font-size-title);font-weight:400;font-variant-numeric:tabular-nums;line-height:1.2}
+.ow-tile .num small{font-family:var(--font-anthropic-sans);font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin-left:.25rem}
+.ow-tile .sub{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+.ow-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:var(--cds-gap-md);align-items:start}
+.ow-wide{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:var(--cds-gap-md);align-items:start}
+@media (max-width:900px){.ow-wide{grid-template-columns:1fr}}
+.ow-card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg);display:flex;flex-direction:column;gap:var(--cds-gap-sm);min-width:0}
+.ow-card h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:0}
+.ow-note{margin:0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.5}
+.ow-legend{display:flex;flex-wrap:wrap;gap:.35rem .9rem;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);align-items:center}
+.ow-legend i,.ow-sw{display:inline-block;width:.65rem;height:.65rem;border-radius:2px;margin-right:.3rem;vertical-align:-1px}
+.ow-legend .dia{transform:rotate(45deg) scale(.8);border:1.5px solid var(--color-fg-muted);background:transparent!important}
+.ow-legend .cir{border-radius:50%;border:1.5px solid var(--color-fg-muted);background:transparent!important}
+.ow-chart{position:relative;min-height:120px}
+.ow-mapbox{position:relative;min-height:360px;border-radius:var(--cds-radius);overflow:hidden;background:color-mix(in srgb,var(--color-panel) 80%,#4a90c2 20%)}
+.ow-map{display:block;cursor:grab}
+.ow-land{fill:var(--color-bg);stroke:var(--cds-chart-axis);stroke-linejoin:round}
+.ow-area{stroke-width:1;pointer-events:none}
+.ow-pt{stroke:var(--color-panel);cursor:pointer}
+.ow-pt.is-picked{stroke:var(--color-fg);stroke-width:2.5!important;opacity:1!important}
+.ow-scale line{stroke:var(--color-fg-muted);stroke-width:2}
+.ow-zoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px}
+.ow-zbtn{width:2rem;height:2rem;padding:0;border-radius:var(--cds-radius)}
+.ow-tick{fill:var(--color-fg-muted);font-size:var(--cds-font-size-caption);font-family:var(--font-anthropic-sans);font-variant-numeric:tabular-nums}
+.ow-bval{fill:var(--color-fg)}
+.ow-grid{stroke:var(--cds-chart-grid);stroke-width:1}
+.ow-bar.is-click{cursor:pointer}
+.ow-bar.is-picked .ow-blabel{fill:var(--color-fg);font-weight:600}
+.ow-bar.is-picked rect{stroke:var(--color-fg);stroke-width:1.5}
+.ow-gbox{max-height:620px;overflow:auto;position:relative}
+.ow-rowbg{fill:transparent}
+.ow-grow{cursor:pointer}
+.ow-grow:hover .ow-rowbg,.ow-grow.is-picked .ow-rowbg{fill:var(--cds-chart-grid)}
+.ow-span{stroke:var(--cds-chart-grid);stroke-width:6;stroke-linecap:round}
+.ow-span2{stroke-width:2;stroke-linecap:round;opacity:.7}
+.ow-mk{stroke-width:1.5}
+.ow-today{stroke:var(--cds-chart-reference);stroke-width:1.5;stroke-dasharray:4 3}
+.ow-today-t{fill:var(--color-fg)}
+.ow-tip{position:absolute;display:none;z-index:5;background:var(--cds-surface-popover);border:1px solid var(--cds-border);border-radius:var(--cds-radius);box-shadow:var(--cds-shadow-popover);padding:var(--cds-pad-xs) var(--cds-pad-sm);font-size:var(--cds-font-size-caption);pointer-events:none;max-width:22rem}
+.ow-tip-h{color:var(--cds-text-secondary);margin-bottom:2px}
+.ow-tip-r{display:flex;gap:.5rem;align-items:center;justify-content:space-between}
+.ow-tip-r span:not(.ow-sw){color:var(--color-fg-muted);flex:1}
+.ow-fail{display:flex;align-items:center;justify-content:center;gap:.4rem;min-height:inherit;height:100%;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.ow-dot{width:.375rem;height:.375rem;border-radius:50%;background:var(--color-bad)}
+.ow-controls{display:flex;flex-wrap:wrap;gap:var(--cds-gap-sm);align-items:center}
+.ow-controls input,.ow-controls select{font:inherit;font-size:var(--cds-font-size-caption);padding:.35rem .6rem;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-bg);color:var(--color-fg)}
+.ow-controls input{min-width:14rem;flex:1}
+.ow-count{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+.ow-tbox{max-height:640px;overflow:auto;border:1px solid var(--color-border-line);border-radius:var(--cds-radius)}
+.ow-table{width:100%;border-collapse:collapse;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+.ow-table th{position:sticky;top:0;background:var(--color-panel);text-align:left;font-weight:var(--cds-font-weight-medium);border-bottom:1px solid var(--color-border-line);padding:0;z-index:1;white-space:nowrap}
+.ow-table th button{font:inherit;background:none;border:0;color:var(--color-fg-muted);padding:.5rem .55rem;cursor:pointer;width:100%;text-align:inherit}
+.ow-table th[aria-sort] button{color:var(--color-fg)}
+.ow-table th[aria-sort=descending] button::after{content:" ↓"} .ow-table th[aria-sort=ascending] button::after{content:" ↑"}
+.ow-table td{padding:.42rem .55rem;border-bottom:1px solid var(--color-border-line);vertical-align:top;white-space:nowrap}
+.ow-table td.ow-wrap{white-space:normal;min-width:12rem}
+.ow-table td.ow-small{color:var(--color-fg-muted);max-width:28rem}
+.ow-table td.ow-num,.ow-table th.ow-num{text-align:right}
+.ow-table td.ow-mono{font-variant-numeric:tabular-nums;color:var(--color-fg-muted)}
+.ow-table.is-pick tbody tr{cursor:pointer}
+.ow-table tbody tr:hover,.ow-table tbody tr.is-picked{background:color-mix(in srgb,var(--color-fg) 6%,transparent)}
+.ow-cbar{position:relative;min-width:5.5rem;text-align:right}
+.ow-cbar i{position:absolute;left:0;top:15%;height:70%;background:color-mix(in srgb,var(--cds-chart-muted) 45%,transparent);border-radius:2px}
+.ow-cbar span{position:relative}
+.ow-badge{display:inline-block;border:1px solid;border-radius:999px;padding:0 .5rem;font-size:var(--cds-font-size-caption);white-space:nowrap}
+@media (max-width:700px){.ow-hide-s{display:none}}
+.ow-detail-card{position:sticky;top:3rem}
+.ow-dhead{display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap}
+.ow-dtitle{font-weight:600;flex:1 1 12rem;line-height:1.4}
+.ow-x{margin-left:auto;padding:.15rem .6rem}
+.ow-dl{display:grid;grid-template-columns:auto 1fr;gap:.3rem .8rem;margin:.4rem 0 0;font-size:var(--cds-font-size-caption)}
+.ow-dl dt{color:var(--color-fg-muted)} .ow-dl dd{margin:0;font-variant-numeric:tabular-nums}
+.ow-sub{font-size:var(--cds-font-size-caption);font-weight:600;margin-top:.6rem}
+.ow-tl{list-style:none;margin:.3rem 0 0;padding:0 0 0 .8rem;border-left:2px solid var(--color-border-line);display:flex;flex-direction:column;gap:.45rem;font-size:var(--cds-font-size-caption)}
+.ow-tl li{position:relative;display:flex;flex-direction:column}
+.ow-tl li::before{content:"";position:absolute;left:-1.18rem;top:.35rem;width:.5rem;height:.5rem;border-radius:50%;background:var(--color-fg-muted)}
+.ow-tl-d{color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+.ow-tl-m{color:var(--color-fg-muted)}
+.ow-hintp{margin:0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.ow-prose{font-size:var(--cds-font-size-body);line-height:1.65;max-width:56rem}
+.ow-prose li{margin-bottom:.4rem}
+.ow-filterbar{display:flex;gap:.5rem;align-items:center;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+[data-dash-source-state=empty]{color:transparent}
+[data-dash-source-state=refreshing]{opacity:.5;transition:opacity var(--cds-dur-slow)}
+/* ---- 색 입히기: 배경은 그대로, 글자·강조만. 글자색은 색상과 본문색을 섞어 밝은·어두운 화면 모두에서 읽히게 함 ---- */
+.ow{--ow-blue:#2f6fed;--ow-sky:#0284c7;--ow-teal:#0d9488;--ow-green:#16a34a;--ow-amber:#d99a06;--ow-orange:#ea580c;--ow-red:#dc2626;--ow-violet:#7c3aed;--ow-slate:#64748b;--font-anthropic-sans:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR',sans-serif;--font-anthropic-serif:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR',sans-serif;--c:var(--ow-blue)}
+.ow,.ow *{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Noto Sans KR','Noto Sans CJK KR',Dotum,'돋움',sans-serif!important}
+.ow-title{color:color-mix(in srgb,var(--ow-blue) 75%,var(--color-fg));font-weight:700}
+.ow .ow-lede b{color:color-mix(in srgb,var(--ow-blue) 72%,var(--color-fg))}
+.ow .ow-lede b[data-field^=operating]{color:color-mix(in srgb,var(--ow-teal) 72%,var(--color-fg))}
+.ow .ow-lede b[data-field=overdue]{color:color-mix(in srgb,var(--ow-orange) 75%,var(--color-fg))}
+.ow .ow-lede b[data-field=due_1y]{color:color-mix(in srgb,var(--ow-amber) 70%,var(--color-fg))}
+.ow-tabs button{color:var(--color-fg);font-weight:600}
+.ow-chip,.ow-btn{color:color-mix(in srgb,var(--c) 72%,var(--color-fg));border-color:color-mix(in srgb,var(--c) 45%,var(--color-border-line))}
+.ow-tabs button[aria-selected=true],.ow-chip[aria-pressed=true]{background:color-mix(in srgb,var(--c) 88%,#000);border-color:color-mix(in srgb,var(--c) 88%,#000);color:#fff}
+.ow-chip[data-dl="기한 경과"]{--c:var(--ow-orange)} .ow-chip[data-dl="1년 이내"]{--c:var(--ow-amber)} .ow-chip[data-dl="정상"]{--c:var(--ow-green)} .ow-chip[data-dl="준공"]{--c:var(--ow-blue)}
+.ow-chip[data-src="해상풍력"]{--c:var(--ow-blue)} .ow-chip[data-src="육상풍력"]{--c:var(--ow-green)} .ow-chip[data-src="연료전지"]{--c:var(--ow-violet)} .ow-chip[data-src="태양광"]{--c:var(--ow-amber)} .ow-chip[data-src="기타"]{--c:var(--ow-slate)}
+.ow-srcbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr));gap:var(--cds-gap-sm)}
+.ow-srcbar .ow-chip{display:flex;flex-direction:column;align-items:center;gap:.1rem;padding:.6rem .8rem;border-radius:var(--cds-radius);border-width:1.5px}
+.ow-srct{font-size:var(--cds-font-size-heading);font-weight:700}
+.ow-srcv{font-size:var(--cds-font-size-body);font-weight:600;font-variant-numeric:tabular-nums}
+.ow-g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:var(--cds-gap-md);align-items:start}
+.ow-stack{display:flex;flex-direction:column;gap:var(--cds-gap-md);min-width:0}
+.ow-tile:has([data-field=unsure]){--c:var(--ow-slate)}
+.ow-tile .num{color:color-mix(in srgb,var(--c) 85%,var(--color-fg));font-family:var(--font-anthropic-sans);font-weight:700}
+.ow-tile:has([data-field=active_count]) .num,.ow-tile:has([data-field=permits]) .num{color:var(--color-fg)}
+.ow-tile:has([data-field=active_count]){--c:var(--ow-blue)} .ow-tile:has([data-field=operating_count]){--c:var(--ow-teal)} .ow-tile:has([data-field=overdue]){--c:var(--ow-orange)} .ow-tile:has([data-field=due_1y]){--c:var(--ow-amber)} .ow-tile:has([data-field=changed]){--c:#4338ca} .ow-tile:has([data-field=ended_count]){--c:var(--ow-slate)}
+.ow-tile:has([data-field=permits]){--c:var(--ow-violet)} .ow-tile:has([data-field=revoked]){--c:var(--ow-red)} .ow-tile:has([data-field=hearing]){--c:var(--ow-amber)} .ow-tile:has([data-field=offshore]){--c:var(--ow-blue)} .ow-tile:has([data-field=onshore]){--c:var(--ow-green)}
+.ow-card h2{font-weight:700}
+.ow-table th{background:#13203a;border-bottom-color:#13203a}
+.ow-table th button,.ow-table th[aria-sort] button{color:#fff;font-weight:600}
+.ow-table td .ow-strong,.ow-table td.ow-strong{font-weight:600}
+.ow-pill{display:inline-block;padding:0 .45rem;border-radius:4px;font-weight:500;background:color-mix(in srgb,var(--color-fg) 8%,transparent)}
+.ow-table td.ow-mono{color:color-mix(in srgb,var(--c) 72%,var(--color-fg));font-weight:500}
+.ow-table tbody tr:hover,.ow-table tbody tr.is-picked{background:color-mix(in srgb,var(--c) 9%,transparent)}
+.ow-cbar i{background:color-mix(in srgb,var(--c) 32%,transparent)}
+.ow-badge{font-weight:500}
+.ow-dtitle,.ow-sub{color:color-mix(in srgb,var(--c) 75%,var(--color-fg))}
+.ow-dl dt,.ow-tl-d{color:color-mix(in srgb,var(--c) 60%,var(--color-fg-muted))}
+.ow-tl{border-left-color:color-mix(in srgb,var(--c) 40%,var(--color-border-line))}
+.ow-tl li::before{background:var(--c)}
+.ow-today{stroke:var(--ow-red)}
+.ow-today-t{fill:color-mix(in srgb,var(--ow-red) 75%,var(--color-fg))}
+.ow-span{stroke:color-mix(in srgb,var(--ow-slate) 28%,transparent)}
+.ow .ow-prose b{color:color-mix(in srgb,var(--ow-blue) 72%,var(--color-fg))}
+.ow{position:relative}
+.ow-link{color:color-mix(in srgb,var(--ow-blue) 80%,var(--color-fg));font-weight:600}
+.ow-org{display:flex;flex-direction:column;align-items:center;min-height:120px;font-size:var(--cds-font-size-caption)}
+.ow-oline{width:2px;height:1.4rem;background:color-mix(in srgb,var(--ow-blue) 45%,var(--color-border-line))}
+.ow-onode{display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;padding:.45rem .6rem;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-panel)}
+.ow-otop{background:#1d3f8f;border-color:#1d3f8f;color:#fff;min-width:11rem;padding:.65rem 1rem}
+.ow-otop .ow-orole{color:#fff}
+.ow-otop .ow-oname{font-size:var(--cds-font-size-heading)}
+.ow-orole{color:color-mix(in srgb,var(--ow-blue) 72%,var(--color-fg));font-weight:500}
+.ow-oname{font-weight:700;font-size:var(--cds-font-size-body)}
+.ow-oorg{color:var(--color-fg-muted)}
+.ow-osec{width:100%;display:flex;flex-direction:column;gap:.5rem;padding:var(--cds-pad-md);border:1px solid color-mix(in srgb,var(--ow-blue) 35%,var(--color-border-line));border-radius:var(--cds-radius)}
+.ow-otitle{font-weight:700;text-align:center;font-size:var(--cds-font-size-body)}
+.ow-ogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr));gap:.5rem}
+.ow-obranches{width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:var(--cds-gap-md);align-items:start}
+.ow-obranch{--c:var(--ow-violet);display:flex;flex-direction:column;gap:.5rem;padding:var(--cds-pad-md);border:1px solid color-mix(in srgb,var(--c) 40%,var(--color-border-line));border-top:3px solid var(--c);border-radius:var(--cds-radius)}
+.ow-obranch.is-sec{--c:var(--ow-teal)}
+.ow-obranch .ow-orole{color:color-mix(in srgb,var(--c) 75%,var(--color-fg))}
+.ow-odet summary{cursor:pointer;font-weight:600;color:color-mix(in srgb,var(--c) 75%,var(--color-fg))}
+.ow-olist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,7.5rem),1fr));gap:.4rem;margin-top:.5rem}
+.ow-qbar[hidden]{display:none}
+.ow-badge:empty{display:none}
+.ow-qbar input{font-size:var(--cds-font-size-body);padding:.5rem .75rem;background:var(--color-panel)}
+.ow-qres:empty{display:none}
+.ow-qres{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md);font-size:var(--cds-font-size-caption)}
+.ow-qres-h{font-weight:600;margin-bottom:.4rem}
+.ow-qres-list{display:flex;flex-direction:column;max-height:18rem;overflow:auto}
+.ow-qres-i{font:inherit;display:flex;flex-wrap:wrap;gap:.2rem .7rem;text-align:left;background:none;border:0;border-top:1px solid var(--color-border-line);padding:.4rem .25rem;color:var(--color-fg);cursor:pointer}
+.ow-qres-i:hover{background:color-mix(in srgb,var(--ow-blue) 9%,transparent)}
+.ow-table th small{font-weight:400;opacity:.8}
+.ow-table td{vertical-align:middle;line-height:1.45}
+.ow-table td.ow-c-name{min-width:17rem;max-width:26rem}
+.ow-table td.ow-c-detail{min-width:18rem;max-width:26rem}
+.ow-pn{color:color-mix(in srgb,var(--ow-blue) 80%,var(--color-fg));font-weight:600}
+.ow-pn-s,.ow-chg{color:color-mix(in srgb,var(--ow-blue) 80%,var(--color-fg))}
+.ow-name{font-weight:600}
+.ow-lite{color:var(--color-fg-muted)}
+.ow-mw{color:color-mix(in srgb,var(--ow-green) 78%,var(--color-fg));font-weight:600}
+.ow-date-c{color:color-mix(in srgb,var(--ow-blue) 80%,var(--color-fg));font-weight:500}
+.ow-date-p{font-weight:600}
+.ow-d-ok{color:var(--color-fg-muted)}
+.ow-d-soon{color:color-mix(in srgb,var(--ow-orange) 80%,var(--color-fg));font-weight:500}
+.ow-d-over{color:color-mix(in srgb,var(--ow-red) 80%,var(--color-fg));font-weight:500}
+.ow-steps{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.ow-step{border:1px solid var(--color-border-line);border-radius:4px;padding:0 .3rem;color:var(--color-fg-muted);opacity:.65}
+.ow-step.on{opacity:1;color:color-mix(in srgb,var(--ow-blue) 80%,var(--color-fg));border-color:var(--ow-blue);background:color-mix(in srgb,var(--ow-blue) 10%,transparent);font-weight:500}
+.ow-tags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
+.ow-tag{border:1px solid;border-radius:4px;padding:0 .35rem;font-weight:500}
+.ow-hist{color:var(--color-fg-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ow-wide{grid-template-columns:minmax(0,1fr)}
+.ow-table.is-pick tbody tr.no-pick{cursor:default}
+.ow-scrim{position:absolute;inset:0;z-index:19;background:color-mix(in srgb,var(--color-fg) 22%,transparent)}
+.ow-pop{position:absolute;z-index:20;left:50%;transform:translateX(-50%);width:min(36rem,calc(100% - 1rem));max-height:36rem;overflow:auto;background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);box-shadow:var(--cds-shadow-popover);padding:var(--cds-pad-lg)}
+.ow-scrim[hidden],.ow-pop[hidden]{display:none}
+</style>
+
+<div class="ow">
+  <header class="ow-head" id="top">
+    <h1 class="ow-title">발전사업 허가·진행상황·취소현황 통합 대시보드</h1>
+    <p class="ow-lede" data-read lang="ko"><span data-draw="srcname">—</span>의 유효한 발전사업 허가는 <b data-draw="kv" data-source="kpi" data-field="active_count" data-row="0">—</b>건, <b data-draw="kv" data-source="kpi" data-field="active_gw" data-row="0" data-fmt="f1">—</b> GW입니다. 그중 상업운전이 확인된 곳은 <b data-draw="kv" data-source="kpi" data-field="operating_count" data-row="0">—</b>곳, <b data-draw="kv" data-source="kpi" data-field="operating_mw" data-row="0" data-fmt="mw">—</b> MW입니다. 허가대장에 준공 여부가 적혀 있지 않아 실제 가동 중인 곳은 더 많을 수 있습니다. 공사계획인가·준공 기한이 이미 지난 사업 <b data-draw="kv" data-source="kpi" data-field="overdue" data-row="0">—</b>건과 1년 안에 기한이 오는 사업 <b data-draw="kv" data-source="kpi" data-field="due_1y" data-row="0">—</b>건이 연장 심의·취소 청문의 다음 대상입니다. 준비기간이 지났지만 준공 여부를 확인할 수 없는 허가는 <b data-draw="kv" data-source="kpi" data-field="unsure" data-row="0">—</b>건입니다.</p>
+    <p class="ow-src">기준일 <span data-draw="snap" data-source="snapshot" data-field="value" data-where="item=기준일">—</span> · 허가대장 공개일 <span data-draw="snap" data-source="snapshot" data-field="value" data-where="item=허가대장 공개일">—</span> · 마지막 수집 <span data-draw="snap" data-source="snapshot" data-field="value" data-where="item=데이터 수집 시각">—</span> · 전기위원회 허가대장·개최결과·허가취소 공고 기준</p>
+  </header>
+
+  <div class="ow-srcbar" role="group" aria-label="발전원 선택">
+    <button type="button" class="ow-chip" data-src=""><span class="ow-srct">전체</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=전체">—</span></button>
+    <button type="button" class="ow-chip" data-src="해상풍력"><span class="ow-srct">해상풍력</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=해상풍력">—</span></button>
+    <button type="button" class="ow-chip" data-src="육상풍력"><span class="ow-srct">육상풍력</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=육상풍력">—</span></button>
+    <button type="button" class="ow-chip" data-src="태양광"><span class="ow-srct">태양광</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=태양광">—</span></button>
+    <button type="button" class="ow-chip" data-src="연료전지"><span class="ow-srct">연료전지</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=연료전지">—</span></button>
+    <button type="button" class="ow-chip" data-src="기타"><span class="ow-srct">기타</span><span class="ow-srcv" data-draw="srcn" data-source="kpi" data-field="total" data-where="src=기타">—</span></button>
+  </div>
+
+  <nav class="ow-tabs" role="tablist" aria-label="화면">
+    <button type="button" role="tab" data-tab="overview" aria-selected="true">개요·지도</button>
+    <button type="button" role="tab" data-tab="deadlines" aria-selected="false">기한 관리</button>
+    <button type="button" role="tab" data-tab="list" aria-selected="false">허가 사업 목록</button>
+    <button type="button" role="tab" data-tab="revoke" aria-selected="false">취소·청문</button>
+    <button type="button" role="tab" data-tab="operating" aria-selected="false">가동 단지·심의</button>
+    <button type="button" role="tab" data-tab="ledger" aria-selected="false">전체 허가·위원회</button>
+    <button type="button" role="tab" data-tab="notes" aria-selected="false">데이터 주석</button>
+  </nav>
+
+  <div class="ow-controls ow-qbar" data-qbar>
+    <input class="ow-q" id="ow-q" type="search" placeholder="사업명·사업자·허가번호·지역으로 사업 검색" aria-label="사업 검색">
+    <button type="button" class="ow-btn" data-qclear>지우기</button>
+  </div>
+
+  <!-- ===== 개요 ===== -->
+  <section class="ow-page" id="overview" data-page="overview">
+    <p class="ow-note">이 탭의 숫자는 위에서 고른 발전원 기준입니다. 기타에는 LNG·집단에너지, 기력·원자력, ESS·수력·바이오 등이 들어 있습니다.</p>
+    <div class="ow-tiles">
+      <div class="ow-tile"><span class="lab">유효 허가</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="active_count" data-row="0">—</span><small>건</small></span><span class="sub"><span data-draw="kv" data-source="kpi" data-field="active_gw" data-row="0" data-fmt="f1">—</span> GW · 반납·취소 제외</span></div>
+      <div class="ow-tile"><span class="lab">상업운전</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="operating_count" data-row="0">—</span><small>단지</small></span><span class="sub"><span data-draw="kv" data-source="kpi" data-field="operating_mw" data-row="0" data-fmt="mw">—</span> MW · <span data-draw="kv" data-source="kpi" data-field="turbines" data-row="0">—</span>기</span></div>
+      <div class="ow-tile bad"><span class="lab">기한 경과</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="overdue" data-row="0">—</span><small>건</small></span><span class="sub">다음 기한이 기준일보다 이전</span></div>
+      <div class="ow-tile warn"><span class="lab">1년 이내 기한</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="due_1y" data-row="0">—</span><small>건</small></span><span class="sub">연장 신청·인가 준비 필요</span></div>
+      <div class="ow-tile"><span class="lab">준공 여부 미확인</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="unsure" data-row="0">—</span><small>건</small></span><span class="sub">준비기간이 지났고 허가대장에 준공 기록 없음</span></div>
+      <div class="ow-tile"><span class="lab">사업자 변경</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="changed" data-row="0">—</span><small>건</small></span><span class="sub">양수인가·주식취득·사업자 교체</span></div>
+      <div class="ow-tile"><span class="lab">종결·만료</span><span class="num"><span data-draw="kv" data-source="kpi" data-field="ended_count" data-row="0">—</span><small>건</small></span><span class="sub"><span data-draw="kv" data-source="kpi" data-field="ended_gw" data-row="0" data-fmt="f1">—</span> GW · 반납 <span data-draw="kv" data-source="kpi" data-field="ended_surrendered" data-row="0">—</span> · 취소 <span data-draw="kv" data-source="kpi" data-field="ended_revoked" data-row="0">—</span> · 기한 만료 <span data-draw="kv" data-source="kpi" data-field="ended_expired" data-row="0">—</span></span></div>
+    </div>
+
+    <div class="ow-qres" data-draw="qres" data-source="proj_status"></div>
+
+    <div class="ow-filterbar" data-filterbar hidden>지도와 목록에 필터가 걸려 있습니다. <button type="button" class="ow-btn" data-reset>필터 해제</button></div>
+
+    <div class="ow-wide">
+      <div class="ow-card" id="map-card">
+        <h2>허가 구역 지도</h2>
+        <p class="ow-note">좌표가 적힌 해상풍력 허가만 지도에 나옵니다. 다른 발전원은 주소만 있어 목록에서 확인하세요. 허가대장의 사업구역 좌표로 그린 구역과 중심점입니다. 원 크기는 설비용량, 색은 다음 기한 상태입니다. 휠·버튼으로 확대하고, 점을 누르면 상세 창이 열립니다.</p>
+        <div class="ow-legend">
+          <span><i data-sw="기한 경과"></i>기한 경과</span><span><i data-sw="1년 이내"></i>1년 이내</span><span><i data-sw="정상"></i>정상</span><span><i data-sw="준공"></i>준공</span><span><i data-sw="종결"></i>종결·만료</span>
+        </div>
+        <div class="ow-mapbox" data-draw="map" data-source="proj_status coast"></div>
+        <p class="ow-note">좌표가 없거나 읽을 수 없어 지도에서 빠진 허가: <span data-draw="nocoord" data-source="proj_status">—</span></p>
+      </div>
+    </div>
+
+    <div class="ow-g3">
+      <div class="ow-stack">
+      <div class="ow-card" id="stage-card">
+        <h2>진행 단계별 용량</h2>
+        <p class="ow-note">허가대장 기준. 막대를 누르면 지도·목록이 그 단계로 걸러집니다.</p>
+        <div class="ow-chart" data-draw="stages" data-source="by_stage"></div>
+      </div>
+      <div class="ow-card" id="year-card">
+        <h2>허가 연도별 용량과 생존</h2>
+        <p class="ow-note">최초 허가 연도별 용량. 옅은 부분은 그 해 허가 중 이후 반납·취소된 용량입니다.</p>
+        <div class="ow-chart" data-draw="years" data-source="by_year"></div>
+      </div>
+      </div>
+      <div class="ow-card" id="region-card">
+        <h2>광역지역별 용량</h2>
+        <p class="ow-note">진한 막대는 유효 허가, 옅은 막대는 반납·취소된 용량. 막대를 누르면 그 지역으로 걸러집니다.</p>
+        <div class="ow-chart" data-draw="regions" data-source="by_region"></div>
+      </div>
+      <div class="ow-card" id="operator-card">
+        <h2>사업자별 유효 허가 용량 (상위 12)</h2>
+        <p class="ow-note">현재 사업자(SPC) 이름 기준. 같은 모회사의 여러 SPC는 따로 셉니다.</p>
+        <div class="ow-chart" data-draw="operators" data-source="top_ops"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 기한 관리 ===== -->
+  <section class="ow-page" id="deadlines" data-page="deadlines" hidden>
+    <div class="ow-card" id="gantt-card">
+      <h2>허가별 기한 타임라인</h2>
+      <p class="ow-note">회색 막대는 최초 허가일부터 준비기간(준공기한)까지, 색 선은 공사계획인가 기한까지입니다. ◆ 공사계획인가 기한, ● 준비기간 만료. 속이 찬 표시가 다음에 오는 기한입니다. 기한이 급한 순서로 앞의 200건까지 보여 줍니다. 준공 여부 미확인 허가는 뺐습니다.</p>
+      <div class="ow-controls">
+        <button type="button" class="ow-chip" data-dl="">전체</button>
+        <button type="button" class="ow-chip" data-dl="기한 경과">기한 경과</button>
+        <button type="button" class="ow-chip" data-dl="1년 이내">1년 이내</button>
+        <button type="button" class="ow-chip" data-dl="정상">정상</button>
+        <button type="button" class="ow-chip" data-dl="준공">준공</button>
+      </div>
+      <div class="ow-legend"><span><i data-sw="기한 경과"></i>기한 경과</span><span><i data-sw="1년 이내"></i>1년 이내</span><span><i data-sw="정상"></i>정상</span><span><i class="dia"></i>공사계획인가 기한</span><span><i class="cir"></i>준비기간 만료</span></div>
+      <p class="ow-note" data-empty hidden>고른 조건에 맞는 사업이 없습니다.</p>
+      <div class="ow-gbox"><div class="ow-chart" data-draw="gantt" data-source="proj_status snapshot"></div></div>
+    </div>
+    <div class="ow-card" id="watch-card">
+      <h2>워치리스트: 18개월 안에 기한이 오거나 지난 사업</h2>
+      <p class="ow-note">다음 기한까지 548일 이하인 유효 허가입니다. 지역·사업자 변경 필터를 따르고, 행을 누르면 상세 창이 열립니다. 최근 변경 이력은 허가대장 비고입니다.</p>
+      <div class="ow-tbox">
+        <table class="ow-table is-pick" id="wtable" data-source="proj_status" data-row-key="permit_no">
+          <thead><tr>
+            <th data-field="permit_no"><button type="button">허가번호</button></th>
+            <th data-field="project_name"><button type="button">사업명 (현재 사업자)</button></th>
+            <th data-field="capacity_mw"><button type="button">지역 / 용량</button></th>
+            <th data-field="permit_date" class="ow-hide-s"><button type="button">① 허가 취득시기</button></th>
+            <th data-field="const_deadline"><button type="button">② 공사계획 인가기간<br><small>착공 인가 기한</small></button></th>
+            <th data-field="prep_deadline" class="ow-hide-s"><button type="button">③ 사업 준비기간<br><small>발전소 준공 기한</small></button></th>
+            <th data-field="days_left"><button type="button">잔여 D-Day 상태</button></th>
+            <th data-field="stage"><button type="button">④ 진행 단계</button></th>
+            <th data-field="history" class="ow-hide-s"><button type="button">진행 상세 및 변경 내역</button></th>
+          </tr></thead>
+          <tbody data-draw="watch"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ow-card">
+      <h2>기한 판정 방법</h2>
+      <p class="ow-note">공사계획인가 진행 단계는 공사계획인가 기한을, 착공 단계는 준비기간(준공기한)을 다음 기한으로 봅니다. 기준일보다 이전이면 기한 경과, 365일 이내면 1년 이내입니다. 허가대장에 연장 승인이 아직 반영되지 않았을 수 있으니, 기한 경과 사업은 전기위원회 개최결과의 연장 안건과 함께 확인하세요.</p>
+    </div>
+  </section>
+
+  <!-- ===== 목록 ===== -->
+  <section class="ow-page" id="list" data-page="list" hidden>
+    <div class="ow-wide">
+      <div class="ow-card" id="list-card">
+        <h2>허가 사업 목록</h2>
+        <div class="ow-controls">
+          <select data-draw="sel-region" data-source="proj_status" data-all="전체 지역" aria-label="광역지역"></select>
+          <select data-draw="sel-stage" data-source="by_stage" data-all="전체 단계" aria-label="진행 단계"></select>
+          <select class="ow-dlsel" aria-label="기한 상태">
+            <option value="">전체 기한 상태</option><option value="기한 경과">기한 경과</option><option value="1년 이내">1년 이내</option><option value="정상">정상</option><option value="준공">준공</option><option value="종결">종결</option>
+          </select>
+          <select class="ow-chgsel" aria-label="사업자 변경">
+            <option value="">사업자 변경 전체</option><option value="예">사업자 변경 있음</option><option value="아니오">최초 사업자 유지</option>
+          </select>
+          <button type="button" class="ow-btn" data-reset>초기화</button>
+        </div>
+        <p class="ow-count">조회 <span data-draw="pcount" data-source="proj_status">—</span> · 머리글을 누르면 정렬, 행을 누르면 상세</p>
+        <div class="ow-tbox">
+          <table class="ow-table is-pick" id="ptable" data-source="proj_status" data-row-key="permit_no">
+            <thead><tr>
+              <th data-field="permit_no"><button type="button">허가번호</button></th>
+              <th data-field="project_name"><button type="button">사업명 (현재 사업자)</button></th>
+              <th data-field="capacity_mw"><button type="button">지역 / 용량</button></th>
+              <th data-field="permit_date" class="ow-hide-s"><button type="button">① 허가 취득시기</button></th>
+              <th data-field="const_deadline"><button type="button">② 공사계획 인가기간<br><small>착공 인가 기한</small></button></th>
+              <th data-field="prep_deadline" class="ow-hide-s"><button type="button">③ 사업 준비기간<br><small>발전소 준공 기한</small></button></th>
+              <th data-field="days_left"><button type="button">잔여 D-Day 상태</button></th>
+              <th data-field="stage"><button type="button">④ 진행 단계</button></th>
+              <th data-field="history" class="ow-hide-s"><button type="button">진행 상세 및 변경 내역</button></th>
+            </tr></thead>
+            <tbody data-draw="ptable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 취소·청문 ===== -->
+  <section class="ow-page" id="revoke" data-page="revoke" hidden>
+    <p class="ow-note">이 탭은 모든 발전원 기준입니다. 자진 반납은 허가대장에 적힌 해상풍력만 들어 있고, 기한 만료는 처분이 아니어서 세지 않습니다.</p>
+    <div class="ow-tiles">
+      <div class="ow-tile"><span class="lab">취소·청문·반납 허가</span><span class="num"><span data-draw="kv" data-source="rev_kpi" data-field="permits" data-row="0">—</span><small>건</small></span><span class="sub">전 발전원, 허가 단위 중복 제거 · 취소 <span data-draw="kv" data-source="rev_kpi" data-field="revoked" data-row="0">—</span> · 청문 <span data-draw="kv" data-source="rev_kpi" data-field="hearing" data-row="0">—</span> · 반납 <span data-draw="kv" data-source="rev_kpi" data-field="surrendered" data-row="0">—</span></span></div>
+      <div class="ow-tile bad"><span class="lab">최종 허가취소</span><span class="num"><span data-draw="kv" data-source="rev_kpi" data-field="revoked" data-row="0">—</span><small>건</small></span><span class="sub">전기위원회 처분 확정</span></div>
+      <div class="ow-tile warn"><span class="lab">청문 진행(처분 전)</span><span class="num"><span data-draw="kv" data-source="rev_kpi" data-field="hearing" data-row="0">—</span><small>건</small></span><span class="sub">청문 공고 후 최종 처분 공고 전</span></div>
+      <div class="ow-tile"><span class="lab">해상풍력</span><span class="num"><span data-draw="kv" data-source="rev_kpi" data-field="offshore" data-row="0">—</span><small>건</small></span><span class="sub"><span data-draw="kv" data-source="rev_kpi" data-field="offshore_mw" data-row="0" data-fmt="mw">—</span> MW · 반납 <span data-draw="kv" data-source="rev_kpi" data-field="offshore_surrendered" data-row="0">—</span> · 취소 <span data-draw="kv" data-source="rev_kpi" data-field="offshore_revoked" data-row="0">—</span> · 기한 만료 제외</span></div>
+      <div class="ow-tile"><span class="lab">육상풍력</span><span class="num"><span data-draw="kv" data-source="rev_kpi" data-field="onshore" data-row="0">—</span><small>건</small></span><span class="sub">취소 사유 대부분 공사계획인가 기간 미충족</span></div>
+    </div>
+    <div class="ow-grid2">
+      <div class="ow-card" id="revsrc-card">
+        <h2>발전원별 처분 단계</h2>
+        <p class="ow-note">허가마다 가장 나중 단계만 셉니다(청문 → 취소로 이어진 허가는 취소 1건). 막대를 누르면 아래 표가 그 발전원으로 걸러집니다.</p>
+        <div class="ow-legend"><span><i data-sw="최종 취소"></i>최종 취소</span><span><i data-sw="청문 진행"></i>청문 진행</span><span><i data-sw="종결"></i>자진 반납</span></div>
+        <div class="ow-chart" data-draw="revsrc" data-source="rev_by_source"></div>
+      </div>
+      <div class="ow-card" id="revreason-card">
+        <h2>처분 사유</h2>
+        <p class="ow-note">허가 단위. 공사계획인가 기간을 지키지 못한 경우가 가장 많습니다.</p>
+        <div class="ow-chart" data-draw="revreason" data-source="rev_by_reason"></div>
+      </div>
+    </div>
+    <div class="ow-card" id="rev-table-card">
+      <h2>취소·청문·반납 허가 목록</h2>
+      <div class="ow-controls">
+        <span class="ow-count">위에서 고른 발전원의 허가를 보여 줍니다. 행을 누르면 상세 창이 열립니다.</span>
+      </div>
+      <div class="ow-tbox">
+        <table class="ow-table is-pick" id="rtable" data-source="rev_by_permit" data-row-key="permit_no">
+          <thead><tr>
+            <th data-field="permit_no"><button type="button">허가번호</button></th>
+            <th data-field="stage"><button type="button">최종 단계</button></th>
+            <th data-field="source"><button type="button">발전원</button></th>
+            <th data-field="project_name"><button type="button">사업명</button></th>
+            <th data-field="company" class="ow-hide-s"><button type="button">사업자</button></th>
+            <th data-field="region"><button type="button">지역</button></th>
+            <th data-field="capacity_mw" class="ow-num"><button type="button">용량 (MW)</button></th>
+            <th data-field="reason" class="ow-hide-s"><button type="button">사유</button></th>
+            <th data-field="last_notice"><button type="button">최근 공고일</button></th>
+            <th data-field="hearing" class="ow-hide-s"><button type="button">청문·처분 정보</button></th>
+          </tr></thead>
+          <tbody data-draw="rtable" data-source="proj_status"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ow-card" id="rev-agenda-card">
+      <h2>전기위원회 허가취소 심의 안건</h2>
+      <p class="ow-note">개최결과에 실린 허가취소 안건과 그 회차에 취소·반납 수리·보류된 사업입니다.</p>
+      <div class="ow-tbox">
+        <table class="ow-table" id="ratable" data-source="rev_agendas" data-row-key="id">
+          <thead><tr>
+            <th data-field="date"><button type="button">심의일</button></th>
+            <th data-field="session"><button type="button">차수</button></th>
+            <th data-field="title"><button type="button">안건명</button></th>
+            <th data-field="result"><button type="button">결과</button></th>
+            <th data-field="detail"><button type="button">세부 내용</button></th>
+          </tr></thead>
+          <tbody data-draw="ratable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 가동 단지·심의 ===== -->
+  <section class="ow-page" id="operating" data-page="operating" hidden>
+    <div class="ow-card" id="ops-card">
+      <h2>상업운전 확인 단지</h2>
+      <p class="ow-note">해상풍력은 전기위원회 허가 단지와 제주특별자치도 허가 단지입니다. 개발 기간은 최초 허가부터 상업운전까지입니다. 다른 발전원은 허가대장 비고에 사업개시·상업운전 중이 적힌 허가만 나와서, 실제 가동 중인 곳보다 훨씬 적습니다.</p>
+      <div class="ow-tbox">
+        <table class="ow-table" id="otable" data-source="ops_all" data-row-key="name">
+          <thead><tr>
+            <th data-field="name"><button type="button">단지명</button></th>
+            <th data-field="region"><button type="button">지역</button></th>
+            <th data-field="capacity_mw" class="ow-num"><button type="button">용량 (MW)</button></th>
+            <th data-field="turbine"><button type="button">터빈</button></th>
+            <th data-field="turbines" class="ow-num"><button type="button">기수</button></th>
+            <th data-field="turbine_origin"><button type="button">국산/외산</button></th>
+            <th data-field="permit"><button type="button">최초 허가</button></th>
+            <th data-field="cod"><button type="button">상업운전</button></th>
+            <th data-field="dev_years" class="ow-num"><button type="button">개발 기간 (년)</button></th>
+            <th data-field="authority" class="ow-hide-s"><button type="button">허가 기관</button></th>
+            <th data-field="spc" class="ow-hide-s"><button type="button">운영 SPC</button></th>
+          </tr></thead>
+          <tbody data-draw="otable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ow-card" id="pipeline-card">
+      <h2>다음 준공 후보: 착공·공사계획인가 단계 단지</h2>
+      <p class="ow-note">공사계획인가를 받았거나 착공한 단지입니다. 기한과 최근 변경은 허가대장 기준입니다. 해상풍력은 착공 여부가 허가대장에 적히지 않아 별도 확인 목록으로 표시하고, 다른 발전원은 비고에 공사계획인가가 적힌 허가만 나옵니다.</p>
+      <div class="ow-tbox">
+        <table class="ow-table is-pick" id="btable" data-source="proj_status" data-row-key="permit_no">
+          <thead><tr>
+            <th data-field="permit_no"><button type="button">허가번호</button></th>
+            <th data-field="stage"><button type="button">단계</button></th>
+            <th data-field="project_name"><button type="button">단지명</button></th>
+            <th data-field="operator" class="ow-hide-s"><button type="button">사업자</button></th>
+            <th data-field="region"><button type="button">지역</button></th>
+            <th data-field="capacity_mw" class="ow-num"><button type="button">용량 (MW)</button></th>
+            <th data-field="const_deadline"><button type="button">공사계획인가 기한</button></th>
+            <th data-field="prep_deadline"><button type="button">준공기한</button></th>
+            <th data-field="history" class="ow-hide-s"><button type="button">최근 허가대장 변경</button></th>
+          </tr></thead>
+          <tbody data-draw="btable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ow-card" id="agenda-card">
+      <h2>전기위원회 심의 안건</h2>
+      <p class="ow-note">위원회 개최결과 PDF(2024년 하반기 이후)에서 뽑은 안건입니다. 결과 칸은 결과문의 구분(허가·조건부허가·심의보류·인가 등)이고, 조건부허가·보류 사유는 안건명 뒤에 붙어 있습니다. 위에서 고른 발전원은 안건명에 적힌 말(해상·풍력·태양·연료전지)로 가르고, 그런 말이 없는 안건은 기타에 나옵니다.</p>
+      <div class="ow-tbox">
+        <table class="ow-table" id="atable" data-source="agendas" data-row-key="id">
+          <thead><tr>
+            <th data-field="date"><button type="button">심의일</button></th>
+            <th data-field="session"><button type="button">차수</button></th>
+            <th data-field="type" class="ow-hide-s"><button type="button">구분</button></th>
+            <th data-field="title"><button type="button">안건명</button></th>
+            <th data-field="result"><button type="button">결과</button></th>
+            <th data-field="summary" class="ow-hide-s"><button type="button">요약</button></th>
+          </tr></thead>
+          <tbody data-draw="atable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 전체 허가·위원회 ===== -->
+  <section class="ow-page" id="ledger" data-page="ledger" hidden>
+    <div class="ow-grid2">
+      <div class="ow-card" id="ledger-card">
+        <h2>3MW 초과 발전사업 허가 수 (발전원별)</h2>
+        <p class="ow-note">허가대장 전체 <b data-draw="kv" data-source="ledger_total" data-field="total" data-row="0">—</b>건(허가번호 단위, 변경 이력은 한 건으로)을 발전원으로 나눴습니다. 풍력은 사업장소가 해상·공유수면이면 해상풍력으로 셉니다.</p>
+        <div class="ow-chart" data-draw="ledger" data-source="ledger_sources"></div>
+      </div>
+    </div>
+    <div class="ow-card" id="committee-card">
+      <h2>전기위원회 조직도</h2>
+      <p class="ow-note">전기위원회 조직도 자료로 그린 그림입니다. 전문위원회와 사무국은 눌러서 펼칠 수 있습니다. 명단 수집 시각 <span data-draw="snap" data-source="snapshot" data-field="value" data-where="item=위원회 명단 수집 시각">—</span>. 연락처와 최신 내용은 <a class="ow-link" href="https://www.korec.go.kr" target="_blank" rel="noopener">전기위원회 누리집</a>의 위원회 소개에서 확인하세요.</p>
+      <div class="ow-org" data-draw="orgchart" data-source="committee"></div>
+    </div>
+  </section>
+
+  <!-- ===== 데이터 주석 ===== -->
+  <section class="ow-page" id="notes" data-page="notes" hidden>
+    <div class="ow-card">
+      <h2>이 대시보드의 데이터</h2>
+      <div class="ow-prose">
+        <ul>
+          <li><b>출처</b> — 전기위원회 누리집(www.korec.go.kr)에서 직접 수집합니다. 허가 사업은 공지사항의 「3MW초과 발전사업 허가대장」 PDF(분기 공개), 취소·청문은 공지사항의 허가취소 처분 공고·청문 실시 공고 첨부(HWPX·HWP·PDF), 심의 안건은 「위원회 개최결과」 PDF, 명단은 조직도입니다.</li>
+          <li><b>갱신</b> — GitHub Actions가 하루 두 번 게시판과 조직도를 확인해 바뀐 것이 있을 때만 다시 정리합니다. 저장소의 Actions 화면에서 직접 실행할 수도 있습니다. 머리글의 마지막 수집 시각과 아래 수집 시점 표로 확인하세요.</li>
+          <li><b>다른 발전원</b> — 허가대장 전체를 발전원별로 나눠 보여 줍니다. 허가대장에는 준공 여부가 없어, 해상풍력 외 허가의 준비기간이 지나면 만료로 보지 않고 「준비기간 경과(준공 여부 미확인)」로 표시합니다. 비고에 사업개시·상업운전 중이 적힌 허가만 준공으로 봅니다. 해상풍력과 달리 이전 허가번호 묶기는 하지 않아, 같은 사업이 번호별로 따로 나올 수 있고 번호 칸이 비어 있던 일부 행은 「2023-#1」처럼 표시됩니다. 경쟁입찰·환경영향평가·좌표는 해상풍력만 연결되어 있습니다.</li>
+          <li><b>해상풍력 판정</b> — 허가대장에서 원동력이 풍력이고 사업장소가 해상·공유수면·해역·방조제인 허가입니다. 양수 등으로 새 허가번호를 받은 경우(같은 사업장소, 이전 허가가 끝난 뒤 새 허가 시작)는 이전 번호를 상세의 「이전 허가번호」로 묶었습니다.</li>
+          <li><b>진행 단계</b> — 허가대장 비고의 반납·허가취소로 종결을 판정합니다. 준비기간이 1년 넘게 지났는데 허가대장에 새 기록이 없는 허가는 「기한 만료(허가대장 미갱신)」로 따로 둡니다. 착공 여부와 상업운전은 허가대장에 적히지 않아 확인된 목록으로 표시합니다.</li>
+          <li><b>취소·청문 건수</b> — 같은 허가가 청문 공고와 최종 취소 공고에 함께 실리면 허가번호 하나로 묶고 가장 나중 단계만 셉니다. 2025년 상반기 이전 청문 공고 일부는 구형 한글 서식이라 표를 읽지 못해 빠질 수 있습니다.</li>
+          <li><b>사업자 변경</b> — 현재·최초 사업자가 다르거나 양수인가·주식취득 이력이 있는 허가입니다.</li>
+          <li><b>좌표</b> — 허가대장 좌표(도·분·초, 표기 방식이 제각각)를 직접 읽어 지도에 그렸습니다. 구역 모양은 좌표점을 감싼 외곽선이라 실제 경계와 다를 수 있습니다. 읽지 못한 허가는 지도 아래에 번호를 적었습니다.</li>
+          <li><b>가동 단지</b> — 제주특별자치도 허가 단지(탐라·한림)는 전기위원회 허가대장에 없어 공개 자료로 정리한 별도 표로 보여 줍니다.</li>
+          <li><b>기한</b> — 페이지를 연 날(한국 시각)을 기준일로 남은 일수를 계산합니다. 허가대장 반영이 늦은 연장 승인은 빠져 있을 수 있으니 개최결과의 연장 안건과 함께 확인하세요.</li>
+          <li><b>경쟁입찰 선정</b> — 2023년은 일렉트릭파워 기사, 2024년은 삼성증권 보고서에 실린 사업을 이름과 용량으로 허가번호에 맞춘 것이며, 한국에너지공단 선정결과 원문과 대조하지 않았습니다. 고창(76.2 MW)과 야월(104 MW)은 허가와 용량이 달라 연결하지 않았고, 2025년과 2026년 상반기는 사업명이 공개되지 않아 넣지 않았습니다.</li>
+          <li><b>환경영향평가</b> — 공공데이터포털 「환경영향평가 협의 현황정보 서비스」의 사업 목록에서 사업명으로 허가번호에 연결한 값입니다. 조회 시점 사본이라 자동 갱신되지 않습니다. 평가 하나가 여러 허가를 묶는 경우 각 허가에 같은 값을 표시하고, 표시가 없는 허가는 협의 기록이 없다는 뜻이 아니라 사업명으로 연결하지 못한 것일 수 있습니다.</li>
+          <li><b>진행 단계 표시</b> — ②환경은 협의 완료일 때, ③입찰은 위 목록에 있을 때, ④인가·착공과 ⑤준공은 진행 단계로 켭니다. 계통 표시는 아직 없고, 진행률(%)은 근거 자료가 없어 표시하지 않습니다.</li>
+          <li><b>지도 바탕</b> — 통계청 2013 시도 경계(southkorea-maps)를 단순화했습니다.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="ow-card">
+      <h2>수집 시점</h2>
+      <div class="ow-tbox">
+        <table class="ow-table" id="stable" data-source="snapshot" data-row-key="item">
+          <thead><tr><th data-field="item"><button type="button">항목</button></th><th data-field="value"><button type="button">값</button></th></tr></thead>
+          <tbody data-draw="stable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <p class="ow-note">전기위원회의 공식 서비스가 아닙니다. 공개 자료를 자동으로 정리한 것이어서 오류가 있을 수 있으니, 중요한 판단은 원문으로 확인하세요.</p>
+
+  <div class="ow-scrim" data-modal hidden></div>
+  <div class="ow-pop" data-modal role="dialog" aria-label="사업 상세" hidden>
+    <div data-draw="detail" data-source="proj_status"></div>
+  </div>
+</div>
+
+<script src="core.js"></script>
+<script src="charts.js"></script>
+<script src="tables.js"></script>
+<script src="extra.js"></script>
+<script>
+(() => {
+  let tab = 'overview';
+  let lastY = 0, openPick = null;
+  document.querySelectorAll('.ow').forEach((ow) => ow.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.ow-pop')) lastY = ev.clientY - ow.getBoundingClientRect().top;
+  }, true));
+  document.querySelectorAll('.ow-scrim').forEach((s) => s.addEventListener('click', () => dash.setParams({ pick: null })));
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && dash.params().pick) dash.setParams({ pick: null }); });
+  const pages = () => document.querySelectorAll('[data-page]');
+  const show = (name, link) => {
+    if (![...pages()].some((p) => p.dataset.page === name)) return;
+    tab = name;
+    pages().forEach((p) => { p.hidden = p.dataset.page !== name; });
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    document.querySelectorAll('[data-qbar]').forEach((b) => { b.hidden = name === 'ledger' || name === 'notes'; });
+    if (link) dash.setLink(name);
+  };
+  document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab, true)));
+  const h = location.hash.slice(1);
+  if (h) show(h, false);
+  document.querySelectorAll('[data-dl]').forEach((b) => b.addEventListener('click', () => dash.setParams({ dl: b.dataset.dl || null })));
+  document.querySelectorAll('[data-src]:not([data-draw]).ow-chip').forEach((b) => b.addEventListener('click', () => dash.setParams({ src: b.dataset.src || null, stage: null, region: null, pick: null })));
+  document.querySelectorAll('[data-reset]').forEach((b) => b.addEventListener('click', () => dash.setParams({ region: null, stage: null, q: null, dl: null, chg: null })));
+  document.querySelectorAll('.ow-q').forEach((q) => {
+    let t;
+    q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => dash.setParams({ q: q.value.trim() || null }), 200); });
+  });
+  document.querySelectorAll('[data-qclear]').forEach((b) => b.addEventListener('click', () => dash.setParams({ q: null })));
+  document.querySelectorAll('.ow-dlsel').forEach((s) => s.addEventListener('change', () => dash.setParams({ dl: s.value || null })));
+  document.querySelectorAll('.ow-chgsel').forEach((s) => s.addEventListener('change', () => dash.setParams({ chg: s.value || null })));
+  document.querySelectorAll('[data-cg]').forEach((b) => b.addEventListener('click', () => dash.setParams({ cg: b.dataset.cg || null })));
+  document.querySelectorAll('.ow-cq').forEach((q) => {
+    let t;
+    q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => dash.setParams({ cq: q.value.trim() || null }), 200); });
+  });
+  dash.onData(() => {
+    const p = dash.params();
+    const pd = p.pick ? dash.data('proj_status') : null;
+    const shown = !!(pd && pd.status === 'ok' && pd.data.some((x) => x.permit_no === p.pick));
+    document.querySelectorAll('[data-modal]').forEach((m) => { m.hidden = !shown; });
+    document.querySelectorAll('.ow-pop').forEach((m) => {
+      if (shown && openPick !== p.pick) {
+        const ow = m.closest('.ow');
+        const room = ow ? ow.getBoundingClientRect().height - 590 : 0;
+        m.style.top = `${Math.max(0, Math.min(lastY - 160, room))}px`;
+        requestAnimationFrame(() => m.scrollIntoView({ block: 'nearest' }));
+      }
+    });
+    openPick = shown ? p.pick : null;
+    document.querySelectorAll('[data-dl]').forEach((b) => b.setAttribute('aria-pressed', String((p.dl || '') === b.dataset.dl)));
+    document.querySelectorAll('.ow-srcbar [data-src]').forEach((b) => b.setAttribute('aria-pressed', String((p.src || '') === b.dataset.src)));
+    document.querySelectorAll('.ow-q').forEach((q) => { if (q !== document.activeElement) q.value = p.q || ''; });
+    document.querySelectorAll('.ow-dlsel').forEach((s) => { s.value = p.dl || ''; });
+    document.querySelectorAll('.ow-chgsel').forEach((s) => { s.value = p.chg || ''; });
+    document.querySelectorAll('[data-cg]').forEach((b) => b.setAttribute('aria-pressed', String((p.cg || '') === b.dataset.cg)));
+    document.querySelectorAll('.ow-cq').forEach((q) => { if (q !== document.activeElement) q.value = p.cq || ''; });
+    document.querySelectorAll('[data-filterbar]').forEach((f) => { f.hidden = !(p.region || p.stage || p.dl || p.q || p.chg); });
+    pages().forEach((pg) => { pg.hidden = pg.dataset.page !== tab; });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>

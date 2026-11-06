@@ -1,0 +1,53 @@
+name: 전기위원회 자료 갱신
+
+on:
+  schedule:
+    - cron: '44 23 * * *'   # 매일 08:44 (한국 시각)
+    - cron: '44 8 * * *'    # 매일 17:44 (한국 시각)
+  workflow_dispatch:         # Actions 화면의 Run workflow 버튼
+    inputs:
+      force:
+        description: '바뀐 글이 없어도 전체를 다시 수집'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 도구 설치
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+          pip install -q pdfplumber pyhwp
+      - name: 받아 둔 첨부 파일 불러오기
+        uses: actions/cache@v4
+        with:
+          path: |
+            collector/raw
+            collector/state.json
+          key: collector-${{ github.run_id }}
+          restore-keys: collector-
+      - name: 전기위원회 확인·갱신
+        run: python collector/update_site.py ${{ inputs.force && '--force' || '' }}
+      - name: 환경영향평가 갱신
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+        run: python collector/update_eia.py
+      - name: 바뀐 자료 올리기
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --staged --quiet && echo "올릴 변경 없음" || (git commit -m "자료 갱신 $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')" && git push)

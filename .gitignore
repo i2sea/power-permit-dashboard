@@ -1,0 +1,6 @@
+collector/raw/
+collector/out/
+collector/ck.txt
+collector/state.json
+collector/state_next.json
+__pycache__/
